@@ -51,7 +51,7 @@ class RobotiqGripper:
         return int(self._get("POS"))
     
     def open(self):
-        self.move(1)
+        self.move(0)
 
     def close(self):
-        self.move(254)
+        self.move(255)

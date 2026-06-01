@@ -38,10 +38,10 @@ poses = [
     # input("enter for next")
 
 
-def rotate_wrist(arm_control, amt):
-    joints = right_receive.getActualQ()
+def rotate_wrist(arm_control, pos, amt):
+    joints = arm_control.getInverseKinematics(pos)
     joints[-1] += amt
-    return arm_control.getInverseKinematics(joints)
+    return arm_control.getForwardKinematics(joints)
 
 
 
@@ -77,11 +77,17 @@ right_arm = {
     # right_control.moveL(pose, speed=0.3)
 
 right_gripper.open()
+
+pos = right_receive.getActualTCPPose()
+pos[0] += 15/100
+right_control.moveL(pos)
+
 pos = right_arm['bottom_right']
-pos[2] += 10/100 # temp line for debug
+#pos[2] += 10/100 # temp line for debug
 pos[2] += 8/100
 right_control.moveL(pos)
 right_gripper.close()
+input('advance?')
 
 # input('1')
 # attempt to rotate lol
@@ -113,17 +119,55 @@ right_control.moveL(pos)
 right_gripper.close()
 
 # fold
+radius = 9.50/100
+angle = -1 * math.pi/4
+
+
+# poses = [
+#     (-0.5 * radius, 0.5 * radius),
+#     (-0.5 * radius, 0.5 * radius),
+#     (-0.5 * radius, -0.5 * radius),
+#     (-0.5 * radius, -0.5 * radius)
+# ]
+
+# for pose in poses:
+#     joints = right_receive.getActualQ()
+#     joints[-1] += angle
+#     right_control.moveJ(joints)
+
+#     pos = right_receive.getActualTCPPose()
+#     pos[1] += pose[0]
+#     pos[2] += pose[1]
+#     right_control.moveL(pos)
+#     print(pos)
+#     # input('advance?')
+
+
+poses = [
+    [0.14455670902501033, -0.4171414963796778, 0.14367779896784005, 0.6144824954075364, -1.4835426886965852, -0.6135300246668695],
+    [0.14456742466626873, -0.46458551220396765, 0.19113158370842376, 1.2101184686104587, -1.2103547846453826, -1.20845800645584],
+    [0.1446362691868944, -0.512027513533371, 0.1436820066897817, 1.7613427711876397, -0.7299543455686673, -1.7584837794824175],
+    [0.14468408650575754, -0.5594727288560295, 0.09619033930373834, 2.2229241311048273, -0.0005453450726498538, -2.2194132031899336]
+]
+
+for pose in poses:
+    right_control.moveL(pose)
+    pos = pose
+
+
+
+
 # move with radius 8.25 in circular motion
-radius = 8.25/100
+#radius = 8.25/100
 # move -16.5 in y and flip 180 deg in rx
-pos[1] -= 16.5/100
+#pos[1] -= 16.5/100
 # pos[3] += math.pi
 # move slightly up so it prioritizes upper circle
-pos[2] += 1/100
-right_control.servoC(pos, blend=radius)
+#pos[2] += 1/100
+#right_control.servoC(pos, blend=radius)
 # move back down
-pos[2] -= 1/100
-right_control.moveL(pos)
+#pos[2] -= 1/100
+#right_control.moveL(pos)
 
 
 
