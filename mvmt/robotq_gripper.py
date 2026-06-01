@@ -49,3 +49,9 @@ class RobotiqGripper:
 
     def position(self):
         return int(self._get("POS"))
+    
+    def open(self):
+        self.move(1)
+
+    def close(self):
+        self.move(254)
