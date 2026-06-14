@@ -1,0 +1,7 @@
+# Core math stack (required) — the framework's transforms are built on these.
+numpy>=1.23,<2.3
+scipy>=1.10
+spatialmath-python>=1.1
+
+# Robot I/O (required only on the hardware PC; imported lazily otherwise).
+ur-rtde>=1.5

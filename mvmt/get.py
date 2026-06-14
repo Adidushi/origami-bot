@@ -33,6 +33,7 @@ poses = [
     left_tl + bottom_end_effector_pose,
     left_br + bottom_end_effector_pose
 ]
+
 # for pose in poses:
     # left_control.moveL(pose)
     # input("enter for next")
@@ -78,14 +79,23 @@ right_arm = {
 
 right_gripper.open()
 
+joints = right_receive.getActualQ()
+joints[-1] = 0
+right_control.moveJ(joints)
+
 pos = right_receive.getActualTCPPose()
 pos[0] += 15/100
 right_control.moveL(pos)
 
 pos = right_arm['bottom_right']
 #pos[2] += 10/100 # temp line for debug
-pos[2] += 8/100
+pos[2] += 7.65/100
 right_control.moveL(pos)
+
+left_pos = left_arm['top_left']
+left_pos[2] += 7.65/100
+left_control.moveL(left_pos)
+
 right_gripper.close()
 input('advance?')
 
@@ -150,9 +160,13 @@ poses = [
     [0.14468408650575754, -0.5594727288560295, 0.09619033930373834, 2.2229241311048273, -0.0005453450726498538, -2.2194132031899336]
 ]
 
-for pose in poses:
-    right_control.moveL(pose)
-    pos = pose
+# for pose in poses:
+#     right_control.moveL(pose)
+#     pos = pose
+poses_with_vars = [pose+[0.5,0.5,0] for pose in poses]
+
+right_control.moveL(poses_with_vars)
+
 
 
 
