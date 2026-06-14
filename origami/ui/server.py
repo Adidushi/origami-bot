@@ -37,6 +37,23 @@ _CONTENT_TYPES = {
 }
 
 
+def _discover_static_files() -> dict[str, Path]:
+    """Map each servable file name to its real path under ``STATIC_DIR``.
+
+    The frontend is a flat set of files, so requests are resolved purely by
+    looking their basename up in this mapping.  Because the served paths come
+    from the directory listing -- never from the request -- user input cannot
+    steer the open to a file outside ``STATIC_DIR``.
+    """
+    if not STATIC_DIR.is_dir():
+        return {}
+    return {entry.name: entry.resolve() for entry in STATIC_DIR.iterdir() if entry.is_file()}
+
+
+#: Allow-list of static files, keyed by basename, built once at import.
+STATIC_FILES = _discover_static_files()
+
+
 class WorkspaceController:
     """Stateful, thread-safe controller around a simulated `Workspace`.
 
@@ -252,15 +269,13 @@ def _make_handler(controller: WorkspaceController) -> type[BaseHTTPRequestHandle
             return json.loads(raw.decode("utf-8")) if raw else {}
 
         def _serve_static(self, rel_path: str) -> None:
-            # The frontend lives as a flat set of files in STATIC_DIR, so only
-            # the final path component is ever meaningful.  Reducing the request
-            # to its basename discards any directory or ``..`` segments and makes
-            # path traversal outside STATIC_DIR impossible.
-            name = Path(rel_path).name
-            if not name:
-                name = "index.html"
-            target = (STATIC_DIR / name).resolve()
-            if target.parent != STATIC_DIR or not target.is_file():
+            # Resolve requests purely by basename lookup in the pre-built
+            # allow-list.  The request only supplies a dictionary *key*; the
+            # actual file path is taken from STATIC_FILES, so traversal outside
+            # STATIC_DIR is impossible.
+            name = Path(rel_path).name or "index.html"
+            target = STATIC_FILES.get(name)
+            if target is None:
                 self._send_json({"error": "not found"}, status=404)
                 return
             data = target.read_bytes()
