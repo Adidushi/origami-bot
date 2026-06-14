@@ -278,14 +278,17 @@ class Paper:
 
         Notes
         -----
-        Selected landmarks are mirrored exactly across ``fold_line``; a
-        `Fold` record (the crease, clipped to the current bounding box) is
-        appended to `folds`.
+        Selected landmarks are mirrored exactly across ``fold_line``.  Where the
+        crease passes through the interior of the sheet -- i.e. an edge of the
+        landmark polygon has one endpoint that moves and one that stays -- a new
+        landmark is inserted at that boundary intersection so the page keeps its
+        true folded outline instead of being skewed by the moved corner alone.
+        A `Fold` record (the crease, clipped to those boundary intersections
+        when available) is appended to `folds`.
         """
         names = self._select_landmarks(fold_line, moving_region)
-        for name in names:
-            self.landmarks[name] = fold_line.reflect(self.landmarks[name])
-        start, end = self._crease_endpoints(fold_line)
+        crease_points = self._apply_fold(fold_line, names)
+        start, end = self._crease_endpoints(fold_line, crease_points)
         self.folds.append(Fold(start=start, end=end, style=style, label=label))
         self.history.append(f"fold {style} '{label}' moving {names}")
         return self
@@ -312,18 +315,105 @@ class Paper:
             return [n for n, p in self.landmarks.items() if moving_region(p)]
         return list(moving_region)
 
-    def _crease_endpoints(self, fold_line: FoldLine) -> tuple[np.ndarray, np.ndarray]:
-        """Clip a fold line to the current bounding box for drawable endpoints.
+    def _apply_fold(self, fold_line: FoldLine, names) -> list[np.ndarray]:
+        """Reflect the moving landmarks and insert crease boundary points.
+
+        The landmark dict is treated as a closed polygon in insertion order.
+        Each polygon edge with exactly one moving endpoint is crossed by the
+        crease; a new landmark is inserted at that crossing (which lies on the
+        fold line and is therefore unaffected by the reflection).  This keeps
+        the page outline correct instead of letting a lone moved corner skew
+        the whole sheet.
 
         Parameters
         ----------
         fold_line : origami.geometry.FoldLine
+        names : iterable of str
+            The landmarks that move with the flap.
+
+        Returns
+        -------
+        list of numpy.ndarray
+            The crease/boundary intersection points that were inserted, in
+            polygon order.
+        """
+        moving = set(names)
+        items = list(self.landmarks.items())
+        rebuilt: dict[str, np.ndarray] = {}
+        crease_points: list[np.ndarray] = []
+
+        def _add_crease(point: np.ndarray, *neighbours: np.ndarray) -> None:
+            # Skip intersections that coincide with an adjacent vertex, to avoid
+            # zero-length edges / duplicate landmarks piling up where creases meet.
+            for neighbour in neighbours:
+                if float(np.linalg.norm(point - neighbour)) <= 1e-9:
+                    return
+            name = self._unique_landmark_name(rebuilt)
+            rebuilt[name] = point
+            crease_points.append(point)
+
+        count = len(items)
+        for index in range(count):
+            name, position = items[index]
+            placed = fold_line.reflect(position) if name in moving else position.copy()
+            rebuilt[name] = placed
+            if count < 2:
+                continue
+            next_name, next_position = items[(index + 1) % count]
+            if (name in moving) == (next_name in moving):
+                continue
+            crossing = fold_line.segment_intersection(position, next_position)
+            if crossing is not None:
+                next_placed = (fold_line.reflect(next_position)
+                               if next_name in moving else next_position)
+                _add_crease(crossing, placed, next_placed)
+
+        self.landmarks = rebuilt
+        return crease_points
+
+    def _unique_landmark_name(self, existing: dict[str, np.ndarray]) -> str:
+        """Generate a fresh ``crease<fold>_<n>`` name not already in use.
+
+        Parameters
+        ----------
+        existing : dict
+            Landmark names already taken in the polygon being rebuilt.
+
+        Returns
+        -------
+        str
+        """
+        base = f"crease{len(self.folds)}"
+        index = 0
+        name = f"{base}_{index}"
+        while name in existing or name in self.landmarks:
+            index += 1
+            name = f"{base}_{index}"
+        return name
+
+    def _crease_endpoints(self, fold_line: FoldLine,
+                          crease_points: list[np.ndarray] | None = None) -> tuple[np.ndarray, np.ndarray]:
+        """Endpoints of the drawable crease segment.
+
+        When the fold actually crosses the sheet boundary the crossing points
+        (``crease_points``) span the page exactly, so they are used directly.
+        Otherwise the fold line is clipped to the current bounding box.
+
+        Parameters
+        ----------
+        fold_line : origami.geometry.FoldLine
+        crease_points : list of numpy.ndarray or None, optional
+            Boundary intersections found while folding.
 
         Returns
         -------
         tuple of numpy.ndarray
             Two endpoints spanning the sheet along the fold line.
         """
+        if crease_points and len(crease_points) >= 2:
+            pts = np.array(crease_points)
+            coords = pts @ fold_line.direction
+            return pts[int(coords.argmin())], pts[int(coords.argmax())]
         lower, upper = self.bounding_box()
         centre = (lower + upper) / 2.0
         span = float(np.linalg.norm(upper - lower)) or 1.0
