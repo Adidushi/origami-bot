@@ -22,7 +22,10 @@ from ..geometry import FoldLine
 from ..paper import Paper
 from ..workspace import Workspace
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_DIR = (Path(__file__).resolve().parent / "static").resolve()
+
+#: Tolerance for treating a point as lying exactly on a fold line.
+ON_LINE_TOLERANCE = 1e-9
 
 _CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -216,7 +219,7 @@ class WorkspaceController:
 
             # 3. Mountain-fold the whole sheet in half.
             centre_line = FoldLine.through_points([centre_x, lower[1]], [centre_x, upper[1]])
-            paper.fold(centre_line, moving_region=lambda xy: xy[0] < centre_x - 1e-9,
+            paper.fold(centre_line, moving_region=lambda xy: xy[0] < centre_x - ON_LINE_TOLERANCE,
                        style="mountain", label="in half")
             return self._state_unlocked()
 
@@ -249,13 +252,15 @@ def _make_handler(controller: WorkspaceController) -> type[BaseHTTPRequestHandle
             return json.loads(raw.decode("utf-8")) if raw else {}
 
         def _serve_static(self, rel_path: str) -> None:
-            if not rel_path or rel_path.endswith("/"):
-                rel_path = "index.html"
-            target = (STATIC_DIR / rel_path).resolve()
-            if STATIC_DIR not in target.parents and target != STATIC_DIR:
-                self._send_json({"error": "forbidden"}, status=403)
-                return
-            if not target.is_file():
+            # The frontend lives as a flat set of files in STATIC_DIR, so only
+            # the final path component is ever meaningful.  Reducing the request
+            # to its basename discards any directory or ``..`` segments and makes
+            # path traversal outside STATIC_DIR impossible.
+            name = Path(rel_path).name
+            if not name:
+                name = "index.html"
+            target = (STATIC_DIR / name).resolve()
+            if target.parent != STATIC_DIR or not target.is_file():
                 self._send_json({"error": "not found"}, status=404)
                 return
             data = target.read_bytes()

@@ -16,6 +16,8 @@ let pending = [];          // board-coordinate points for the fold-in-progress
 let view = null;           // current board->pixel transform
 
 const M2CM = 100;
+// Tolerance for treating a clicked point as lying exactly on the fold line.
+const ON_LINE_TOLERANCE = 1e-9;
 
 // ---- server calls ----------------------------------------------------------
 async function api(path, body) {
@@ -236,7 +238,7 @@ function updateControls() {
 // convention of FoldLine.side_of on the server).
 function sideOf(a, b, p) {
   const cross = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
-  if (Math.abs(cross) < 1e-9) return 0;
+  if (Math.abs(cross) < ON_LINE_TOLERANCE) return 0;
   return cross > 0 ? 1 : -1;
 }
 
