@@ -89,6 +89,7 @@ function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBoard();
   drawPaper();
+  drawBackside();
   drawCreases();
   drawMagnets();
   drawLandmarks();
@@ -127,6 +128,28 @@ function drawPaper() {
   ctx.strokeStyle = "#b9b29a";
   ctx.lineWidth = 1.5;
   ctx.stroke();
+}
+
+function drawBackside() {
+  // Folded-over flaps expose the paper's reverse face, drawn yellow instead of
+  // being left transparent. Later folds sit on top of earlier ones.
+  state.paper.folds.forEach((fold) => {
+    (fold.flaps || []).forEach((flap) => {
+      if (!flap || flap.length < 3) return;
+      ctx.beginPath();
+      flap.forEach((p, i) => {
+        const [px, py] = boardToPx(p[0], p[1]);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.fillStyle = "#f2d23a";
+      ctx.fill();
+      ctx.strokeStyle = "#b9b29a";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+  });
 }
 
 function drawCreases() {

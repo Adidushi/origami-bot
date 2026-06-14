@@ -43,16 +43,23 @@ class Fold:
         mountain (away).  Purely descriptive metadata.
     label : str
         Human-readable name for the fold (e.g. ``'left nose'``).
+    flaps : list of numpy.ndarray, optional
+        The folded-over region(s) of this fold, each an ``(M, 2)`` polygon in
+        board coordinates.  Because these regions have been reflected across the
+        crease they now expose the paper's reverse ("back") face, which the UI
+        renders distinctly.
     """
 
     start: np.ndarray
     end: np.ndarray
     style: str = "valley"
     label: str = ""
+    flaps: list[np.ndarray] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.start = np.asarray(self.start, dtype=float).reshape(2)
         self.end = np.asarray(self.end, dtype=float).reshape(2)
+        self.flaps = [np.asarray(f, dtype=float).reshape(-1, 2) for f in self.flaps]
 
     def as_line(self) -> FoldLine:
         """Return the infinite `FoldLine` of this crease.
@@ -287,9 +294,9 @@ class Paper:
         when available) is appended to `folds`.
         """
         names = self._select_landmarks(fold_line, moving_region)
-        crease_points = self._apply_fold(fold_line, names)
+        crease_points, flaps = self._apply_fold(fold_line, names)
         start, end = self._crease_endpoints(fold_line, crease_points)
-        self.folds.append(Fold(start=start, end=end, style=style, label=label))
+        self.folds.append(Fold(start=start, end=end, style=style, label=label, flaps=flaps))
         self.history.append(f"fold {style} '{label}' moving {names}")
         return self
 
@@ -315,7 +322,7 @@ class Paper:
             return [n for n, p in self.landmarks.items() if moving_region(p)]
         return list(moving_region)
 
-    def _apply_fold(self, fold_line: FoldLine, names) -> list[np.ndarray]:
+    def _apply_fold(self, fold_line: FoldLine, names) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """Reflect the moving landmarks and insert crease boundary points.
 
         The landmark dict is treated as a closed polygon in insertion order.
@@ -333,14 +340,19 @@ class Paper:
 
         Returns
         -------
-        list of numpy.ndarray
+        crease_points : list of numpy.ndarray
             The crease/boundary intersection points that were inserted, in
             polygon order.
+        flaps : list of numpy.ndarray
+            The folded-over region(s), each an ``(M, 2)`` polygon (the reflected
+            moving landmarks together with the crease points that bound them).
         """
         moving = set(names)
         items = list(self.landmarks.items())
         rebuilt: dict[str, np.ndarray] = {}
         crease_points: list[np.ndarray] = []
+        # Ordered polygon entries tagged by kind, used to carve out the flap(s).
+        ordered: list[tuple[np.ndarray, str]] = []
 
         def _add_crease(point: np.ndarray, *neighbours: np.ndarray) -> None:
             # Skip intersections that coincide with an adjacent vertex, to avoid
@@ -351,16 +363,27 @@ class Paper:
             name = self._unique_landmark_name(rebuilt)
             rebuilt[name] = point
             crease_points.append(point)
+            ordered.append((point, "crease"))
 
         count = len(items)
         for index in range(count):
             name, position = items[index]
-            placed = fold_line.reflect(position) if name in moving else position.copy()
+            is_moving = name in moving
+            placed = fold_line.reflect(position) if is_moving else position.copy()
             rebuilt[name] = placed
+            if is_moving:
+                kind = "move"
+            elif abs(fold_line.signed_offset(placed)) <= 1e-9:
+                # A pre-existing landmark sitting on the crease is a shared corner
+                # of the flap, so treat it as a flap boundary vertex.
+                kind = "crease"
+            else:
+                kind = "static"
+            ordered.append((placed, kind))
             if count < 2:
                 continue
             next_name, next_position = items[(index + 1) % count]
-            if (name in moving) == (next_name in moving):
+            if is_moving == (next_name in moving):
                 continue
             crossing = fold_line.segment_intersection(position, next_position)
             if crossing is not None:
@@ -369,7 +392,47 @@ class Paper:
                 _add_crease(crossing, placed, next_placed)
 
         self.landmarks = rebuilt
-        return crease_points
+        return crease_points, self._extract_flaps(ordered)
+
+    @staticmethod
+    def _extract_flaps(ordered: list[tuple[np.ndarray, str]]) -> list[np.ndarray]:
+        """Carve the folded-over flap polygon(s) out of a tagged polygon ring.
+
+        Parameters
+        ----------
+        ordered : list of (numpy.ndarray, str)
+            The rebuilt polygon vertices in order, each tagged ``'move'``,
+            ``'static'`` or ``'crease'``.
+
+        Returns
+        -------
+        list of numpy.ndarray
+            One ``(M, 2)`` polygon per folded-over flap.  A flap is a run of
+            moving/crease vertices bounded by static paper; when the whole sheet
+            moves the single flap is the entire polygon.
+        """
+        if not any(kind == "move" for _, kind in ordered):
+            return []
+        if not any(kind == "static" for _, kind in ordered):
+            return [np.array([p for p, _ in ordered])]
+        # Rotate so the ring starts at a static vertex, giving clean run breaks.
+        start = next(i for i, (_, kind) in enumerate(ordered) if kind == "static")
+        ring = ordered[start:] + ordered[:start]
+        flaps: list[np.ndarray] = []
+        run: list[np.ndarray] = []
+        has_move = False
+        for point, kind in ring:
+            if kind == "static":
+                if has_move and len(run) >= 3:
+                    flaps.append(np.array(run))
+                run = []
+                has_move = False
+                continue
+            run.append(point)
+            has_move = has_move or kind == "move"
+        if has_move and len(run) >= 3:
+            flaps.append(np.array(run))
+        return flaps
 
     def _unique_landmark_name(self, existing: dict[str, np.ndarray]) -> str:
         """Generate a fresh ``crease<fold>_<n>`` name not already in use.

@@ -108,6 +108,7 @@ class WorkspaceController:
                 "end": [float(f.end[0]), float(f.end[1])],
                 "style": f.style,
                 "label": f.label,
+                "flaps": [[[float(p[0]), float(p[1])] for p in flap] for flap in f.flaps],
             }
             for f in paper.folds
         ]
