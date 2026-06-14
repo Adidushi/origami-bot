@@ -1,15 +1,38 @@
-"""High-level, board-aware control of a single robot arm.
+"""Single-arm control in world coordinates.
 
-`Arm` lets you command an arm in **board coordinates** -- "hover above
-this point", "press down here", "grip" -- instead of hand-authoring 6-DOF UR
-poses.  It combines a `BoardCalibration` (which knows
-how board coordinates map to this arm's base frame) with an arm backend and an
-optional gripper backend, real or simulated.
+World space is centred on the board: x/y across the surface, z = height above
+it (z=0 is the board surface).  `ArmCalibration` converts world targets into
+the arm's own base-frame TCP poses so the robot executes them correctly.
 
-Heights are always explicit.  A target is an ``(x, y)`` board location plus a
-*height above the board*; nothing is implicitly assumed to lie on the board
-surface.  The only convenience that defaults to the surface is
-`Arm.press_onto_board()`, whose whole purpose is to make board contact.
+API summary
+-----------
+State
+    current_tcp_pose()      raw [x,y,z,rx,ry,rz] in the arm base frame
+    current_world_pos()     (x, y, z) in world space
+    get_tool_pos()          (x, y, z) in world space (alias for current_world_pos)
+
+Motion — arm (TCP) frame
+    move_to_tcp(pose, motion)   move to a raw TCP pose; motion='linear'|'joint'
+
+Motion — world frame
+    move_to_world(x,y,z, motion)     move to world position
+    move_offset_world(dx,dy,dz)      relative move in world space
+    move_up(d) / move_down(d)        vertical offsets in world z
+
+Gripper
+    grip() / release()
+
+Joint control
+    rotate_joint(joint, delta)  rotate one joint by a delta angle (radians)
+
+Coordinate conversion (no motion)
+    world_to_tcp(x,y,z)     world position → full TCP pose
+    tcp_to_world(pose)      TCP pose → world (x,y,z)
+
+Convenience moves
+    move_to_clearance(x,y)  joint-space transit to safe height above (x,y)
+    press(x,y)              linear descent onto board surface at (x,y)
+    lift()                  linear rise to clearance from current (x,y)
 """
 from __future__ import annotations
 
@@ -17,55 +40,60 @@ from dataclasses import dataclass
 
 from . import backends as backends_mod
 from .backends import ArmBackend, GripperBackend
-from .calibration import BoardCalibration
+from .coords import ArmCalibration
 
 
 @dataclass
 class ArmConfig:
-    """Per-arm motion defaults, in SI units (metres, m/s, m/s^2, radians).
+    """Per-arm motion defaults.
 
     Parameters
     ----------
-    travel_height : float, optional
-        Default height above the board used for collision-free transit moves.
-        Default ``0.10``.
-    contact_depth : float, optional
-        How far *below* the board surface to drive when pressing, to guarantee
-        firm contact (metres, positive number).  Default ``0.002``.
-    linear_speed : float, optional
-        Default tool speed for linear moves (m/s).  Default ``0.25``.
-    linear_acceleration : float, optional
-        Default tool acceleration for linear moves (m/s^2).  Default ``0.5``.
+    clearance_z : float
+        Safe transit height in world z (metres above board).  Default 0.10.
+    contact_depth : float
+        How far below z=0 to drive when pressing onto the board to guarantee
+        firm contact (metres, positive).  Default 0.002.
+    speed : float
+        Default TCP speed for linear moves (m/s).  Default 0.25.
+    acceleration : float
+        Default TCP acceleration (m/s²).  Default 0.5.
+    joint_speed : float
+        Default joint speed for joint moves (rad/s).  Default 1.0.
+    joint_acceleration : float
+        Default joint acceleration (rad/s²).  Default 1.4.
     """
 
-    travel_height: float = 0.10
+    clearance_z: float = 0.10
     contact_depth: float = 0.002
-    linear_speed: float = 0.25
-    linear_acceleration: float = 0.5
+    speed: float = 0.25
+    acceleration: float = 0.5
+    joint_speed: float = 1.0
+    joint_acceleration: float = 1.4
 
 
 class Arm:
-    """One robot arm, commanded in board coordinates.
+    """One robot arm commanded in world coordinates.
 
     Parameters
     ----------
     name : str
-        Label for the arm (e.g. ``'left'``).
-    backend : origami.backends.ArmBackend
-        Motion backend (real or simulated).
-    calibration : origami.calibration.BoardCalibration
-        Board-to-base calibration for this arm.
-    gripper : origami.backends.GripperBackend or None, optional
-        Gripper backend, if this arm has one.
+        Label (e.g. ``'left'``).
+    backend : ArmBackend
+        Motion backend (real hardware or simulated).
+    calibration : ArmCalibration
+        This arm's world-to-base-frame calibration.
+    gripper : GripperBackend or None, optional
+        Gripper backend, if fitted.
     config : ArmConfig or None, optional
-        Motion defaults; a default `ArmConfig` is used if omitted.
+        Motion defaults.
 
     See Also
     --------
     Arm.real, Arm.simulated : Convenience constructors.
     """
 
-    def __init__(self, name: str, backend: ArmBackend, calibration: BoardCalibration,
+    def __init__(self, name: str, backend: ArmBackend, calibration: ArmCalibration,
                  gripper: GripperBackend | None = None, config: ArmConfig | None = None) -> None:
         self.name = name
         self.backend = backend
@@ -77,220 +105,233 @@ class Arm:
     # Constructors
     # ------------------------------------------------------------------ #
     @classmethod
-    def real(cls, name: str, arm_ip: str, calibration: BoardCalibration,
+    def real(cls, name: str, arm_ip: str, calibration: ArmCalibration,
              gripper_ip: str | None = None, gripper_port: int = 63352,
              config: ArmConfig | None = None) -> "Arm":
-        """Build an arm driving real hardware over RTDE.
-
-        Parameters
-        ----------
-        name : str
-            Label for the arm.
-        arm_ip : str
-            IP address of the arm controller.
-        calibration : origami.calibration.BoardCalibration
-            Board-to-base calibration for this arm.
-        gripper_ip : str or None, optional
-            IP of the Robotiq gripper server; ``None`` for no gripper.
-        gripper_port : int, optional
-            Gripper server port.  Default ``63352``.
-        config : ArmConfig or None, optional
-            Motion defaults.
-
-        Returns
-        -------
-        Arm
-        """
+        """Build an arm driving real hardware over RTDE."""
         gripper = backends_mod.RobotiqGripperBackend(gripper_ip, gripper_port) if gripper_ip else None
         return cls(name, backends_mod.RTDEArmBackend(arm_ip), calibration, gripper, config)
 
     @classmethod
-    def simulated(cls, name: str, calibration: BoardCalibration,
+    def simulated(cls, name: str, calibration: ArmCalibration,
                   config: ArmConfig | None = None, start_pose=None) -> "Arm":
-        """Build a fully simulated arm (no hardware required).
-
-        Parameters
-        ----------
-        name : str
-            Label for the arm.
-        calibration : origami.calibration.BoardCalibration
-            Board-to-base calibration for this arm.
-        config : ArmConfig or None, optional
-            Motion defaults.
-        start_pose : sequence of float or None, optional
-            Initial TCP pose for the simulated backend.
-
-        Returns
-        -------
-        Arm
-        """
+        """Build a fully simulated arm (no hardware required)."""
         return cls(name, backends_mod.SimulatedArmBackend(start_pose, name=name), calibration,
                    backends_mod.SimulatedGripperBackend(name=name), config)
-
-    # ------------------------------------------------------------------ #
-    # Motion (board coordinates)
-    # ------------------------------------------------------------------ #
-    def move_to_board_point(self, x: float, y: float, height_above_board: float,
-                            tool_rotation: float = 0.0,
-                            speed: float | None = None, acceleration: float | None = None) -> bool:
-        """Move the tool to a board target at an explicit height.
-
-        This is the general motion primitive; ``height_above_board`` is required
-        so the caller always states the working height.
-
-        Parameters
-        ----------
-        x, y : float
-            Board-surface coordinates of the target (metres).
-        height_above_board : float
-            Height of the tool above the board surface (metres).  ``0`` is on the
-            surface; positive values are above it.
-        tool_rotation : float, optional
-            Gripper rotation about the board normal (radians).  Default ``0``.
-        speed : float or None, optional
-            Override for tool speed (m/s); uses the config default if ``None``.
-        acceleration : float or None, optional
-            Override for tool acceleration (m/s^2); config default if ``None``.
-
-        Returns
-        -------
-        bool
-            ``True`` on success.
-        """
-        pose = self.calibration.tcp_pose_at(x, y, height_above_board, tool_rotation)
-        return self.backend.move_linear(pose, speed or self.config.linear_speed,
-                                        acceleration or self.config.linear_acceleration)
-
-    def hover_above(self, x: float, y: float, tool_rotation: float = 0.0,
-                    hover_height: float | None = None) -> bool:
-        """Move to a safe transit height directly above a board point.
-
-        Parameters
-        ----------
-        x, y : float
-            Board-surface coordinates (metres).
-        tool_rotation : float, optional
-            Gripper rotation about the board normal (radians).  Default ``0``.
-        hover_height : float or None, optional
-            Height above the board (metres); uses
-            `ArmConfig.travel_height` if ``None``.
-
-        Returns
-        -------
-        bool
-        """
-        height = self.config.travel_height if hover_height is None else hover_height
-        return self.move_to_board_point(x, y, height, tool_rotation)
-
-    def press_onto_board(self, x: float, y: float, tool_rotation: float = 0.0,
-                         contact_depth: float | None = None) -> bool:
-        """Press the tool down onto the board surface at a point.
-
-        This is the one operation that intentionally targets the board surface,
-        driving slightly below it to ensure contact.
-
-        Parameters
-        ----------
-        x, y : float
-            Board-surface coordinates (metres).
-        tool_rotation : float, optional
-            Gripper rotation about the board normal (radians).  Default ``0``.
-        contact_depth : float or None, optional
-            Distance below the surface to drive (metres); uses
-            `ArmConfig.contact_depth` if ``None``.
-
-        Returns
-        -------
-        bool
-        """
-        depth = self.config.contact_depth if contact_depth is None else contact_depth
-        return self.move_to_board_point(x, y, -depth, tool_rotation)
-
-    def descend_and_press(self, x: float, y: float, tool_rotation: float = 0.0) -> bool:
-        """Hover above a board point, then press onto the surface.
-
-        Parameters
-        ----------
-        x, y : float
-            Board-surface coordinates (metres).
-        tool_rotation : float, optional
-            Gripper rotation about the board normal (radians).  Default ``0``.
-
-        Returns
-        -------
-        bool
-            Result of the final press.
-        """
-        self.hover_above(x, y, tool_rotation)
-        return self.press_onto_board(x, y, tool_rotation)
-
-    def lift_off_board(self, x: float | None = None, y: float | None = None,
-                       tool_rotation: float = 0.0, hover_height: float | None = None) -> bool:
-        """Raise the tool to transit height.
-
-        Parameters
-        ----------
-        x, y : float or None, optional
-            Board point to lift over.  If either is ``None``, the arm's current
-            board ``(x, y)`` is used (a straight-up lift).
-        tool_rotation : float, optional
-            Gripper rotation about the board normal (radians).  Default ``0``.
-        hover_height : float or None, optional
-            Height above the board (metres); config default if ``None``.
-
-        Returns
-        -------
-        bool
-        """
-        if x is None or y is None:
-            x, y = self.current_board_xy()
-        return self.hover_above(x, y, tool_rotation, hover_height)
-
-    # ------------------------------------------------------------------ #
-    # Gripper
-    # ------------------------------------------------------------------ #
-    def grip(self) -> None:
-        """Close the gripper, if this arm has one."""
-        if self.gripper is not None:
-            self.gripper.grip()
-
-    def release(self) -> None:
-        """Open the gripper, if this arm has one."""
-        if self.gripper is not None:
-            self.gripper.release()
 
     # ------------------------------------------------------------------ #
     # State
     # ------------------------------------------------------------------ #
     def current_tcp_pose(self) -> list[float]:
-        """Return the current TCP pose ``[x, y, z, rx, ry, rz]``.
+        """Current TCP pose ``[x, y, z, rx, ry, rz]`` in the arm's base frame."""
+        return self.backend.current_tcp_pose()
+
+    def current_world_pos(self) -> tuple[float, float, float]:
+        """Current tool position in world space ``(x, y, z)``."""
+        w = self.calibration._arm_to_world_xyz(self.backend.current_tcp_pose()[:3])
+        return float(w[0]), float(w[1]), float(w[2])
+
+    def get_tool_pos(self) -> tuple[float, float, float]:
+        """Current tool position in world space ``(x, y, z)``.
+
+        Convenience alias for `current_world_pos` with a shorter, more
+        intent-revealing name for use in action planning.
+        """
+        return self.current_world_pos()
+
+    # ------------------------------------------------------------------ #
+    # Motion — arm (TCP) frame
+    # ------------------------------------------------------------------ #
+    def move_to_tcp(self, pose: list[float],
+                    speed: float | None = None,
+                    acceleration: float | None = None,
+                    motion: str = "linear") -> bool:
+        """Move to a raw TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame.
+
+        Parameters
+        ----------
+        pose : list of float
+            Target TCP pose.
+        speed, acceleration : float or None
+            Override config defaults.
+        motion : {'linear', 'joint'}
+            ``'linear'`` (default) — TCP traces a straight Cartesian line
+            (``moveL``); precise, use near paper and magnets.
+            ``'joint'`` — joint angles interpolate, curved TCP path
+            (``moveJ`` with IK); faster for large transit moves.
+        """
+        spd = speed or self.config.speed
+        acc = acceleration or self.config.acceleration
+        if motion == "joint":
+            return self.backend.move_joint_space(pose, spd, acc)
+        return self.backend.move_linear(pose, spd, acc)
+
+    # ------------------------------------------------------------------ #
+    # Motion — world frame
+    # ------------------------------------------------------------------ #
+    def move_to_world(self, x: float, y: float, z: float,
+                      tool_rotation: float = 0.0,
+                      speed: float | None = None,
+                      acceleration: float | None = None,
+                      motion: str = "linear") -> bool:
+        """Move to a world position.
+
+        Parameters
+        ----------
+        x, y, z : float
+            World coordinates (metres).  z = 0 is the board surface.
+        tool_rotation : float, optional
+            Gripper spin about the board normal (radians).  Default 0.
+        speed, acceleration : float or None
+            Override config defaults.
+        motion : {'linear', 'joint'}
+            Passed through to `move_to_tcp`.  Default ``'linear'``.
+        """
+        return self.move_to_tcp(
+            self.world_to_tcp(x, y, z, tool_rotation),
+            speed, acceleration, motion,
+        )
+
+    def move_offset_world(self, dx: float, dy: float, dz: float,
+                          tool_rotation: float | None = None) -> bool:
+        """Move by ``(dx, dy, dz)`` relative to the current world position.
+
+        Parameters
+        ----------
+        dx, dy, dz : float
+            Offset in world coordinates (metres).
+        tool_rotation : float or None, optional
+            New gripper rotation.  ``None`` preserves the current TCP
+            orientation exactly (no recomputation).
+        """
+        tcp = self.current_tcp_pose()
+        x, y, z = self.tcp_to_world(tcp)
+        if tool_rotation is None:
+            new_xyz = self.calibration._world_to_arm_xyz(x + dx, y + dy, z + dz)
+            return self.move_to_tcp(list(new_xyz) + tcp[3:])
+        return self.move_to_world(x + dx, y + dy, z + dz, tool_rotation)
+
+    def move_up(self, distance: float) -> bool:
+        """Rise ``distance`` metres in world z from the current position."""
+        return self.move_offset_world(0.0, 0.0, distance)
+
+    def move_down(self, distance: float) -> bool:
+        """Descend ``distance`` metres in world z from the current position."""
+        return self.move_offset_world(0.0, 0.0, -distance)
+
+    # ------------------------------------------------------------------ #
+    # Gripper
+    # ------------------------------------------------------------------ #
+    def grip(self) -> None:
+        """Close the gripper."""
+        if self.gripper is not None:
+            self.gripper.grip()
+
+    def release(self) -> None:
+        """Open the gripper."""
+        if self.gripper is not None:
+            self.gripper.release()
+
+    # ------------------------------------------------------------------ #
+    # Joint control
+    # ------------------------------------------------------------------ #
+    def rotate_joint(self, joint: int, delta: float) -> bool:
+        """Rotate one joint by ``delta`` radians from its current angle.
+
+        Parameters
+        ----------
+        joint : int
+            Joint index 0–5 (0 = base, 5 = wrist).
+        delta : float
+            Angle change in radians (positive = counter-clockwise).
+        """
+        angles = list(self.backend.current_joint_angles())
+        angles[joint] += delta
+        return self.backend.move_joints(
+            angles, self.config.joint_speed, self.config.joint_acceleration
+        )
+
+    # ------------------------------------------------------------------ #
+    # Coordinate conversion (no motion)
+    # ------------------------------------------------------------------ #
+    def world_to_tcp(self, x: float, y: float, z: float,
+                     tool_rotation: float = 0.0) -> list[float]:
+        """Convert a world position to a full TCP pose (no motion).
+
+        Parameters
+        ----------
+        x, y, z : float
+            World coordinates.
+        tool_rotation : float, optional
+            Gripper spin about the board normal (radians).  Default 0.
 
         Returns
         -------
         list of float
+            ``[x, y, z, rx, ry, rz]`` ready for ``moveL``.
         """
-        return self.backend.current_tcp_pose()
+        return self.calibration.tcp_pose(x, y, z, tool_rotation)
 
-    def current_board_point(self) -> tuple[float, float, float]:
-        """Return the tool's current position in board coordinates.
+    def tcp_to_world(self, pose: list[float]) -> tuple[float, float, float]:
+        """Convert a TCP pose to world coordinates (no motion).
+
+        Parameters
+        ----------
+        pose : list of float
+            TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame.
 
         Returns
         -------
         tuple of float
-            ``(x, y, height_above_board)`` in metres.
+            World ``(x, y, z)``.
         """
-        board = self.calibration.base_point_to_board(self.current_tcp_pose()[:3])
-        return float(board[0]), float(board[1]), float(board[2])
+        w = self.calibration._arm_to_world_xyz(pose[:3])
+        return float(w[0]), float(w[1]), float(w[2])
 
-    def current_board_xy(self) -> tuple[float, float]:
-        """Return the tool's current board ``(x, y)``, ignoring height.
+    # ------------------------------------------------------------------ #
+    # Convenience moves
+    # ------------------------------------------------------------------ #
+    def move_to_clearance(self, x: float, y: float,
+                          tool_rotation: float = 0.0,
+                          motion: str = "joint") -> bool:
+        """Move to safe transit height above ``(x, y)``.
 
-        Returns
-        -------
-        tuple of float
+        Defaults to joint-space motion (faster transit, curved path is fine
+        at clearance height where obstacles are absent).
+
+        Parameters
+        ----------
+        x, y : float
+            World target in board plane (metres).
+        tool_rotation : float, optional
+            Gripper spin about the board normal.  Default 0.
+        motion : {'joint', 'linear'}, optional
+            Motion type.  Default ``'joint'``.
         """
-        x, y, _ = self.current_board_point()
-        return x, y
+        return self.move_to_world(x, y, self.config.clearance_z, tool_rotation, motion=motion)
 
-    def __repr__(self) -> str:  # pragma: no cover - cosmetic
+    def press(self, x: float, y: float, tool_rotation: float = 0.0) -> bool:
+        """Drive the tool onto the board surface at ``(x, y)``.
+
+        Descends ``contact_depth`` below z=0 to guarantee firm contact.
+        Uses linear motion for a straight, predictable descent.
+
+        Parameters
+        ----------
+        x, y : float
+            Board position (metres).
+        tool_rotation : float, optional
+            Gripper spin about the board normal.  Default 0.
+        """
+        return self.move_to_world(x, y, -self.config.contact_depth, tool_rotation)
+
+    def lift(self) -> bool:
+        """Rise straight up to clearance height from the current ``(x, y)``.
+
+        Uses linear motion so the TCP moves vertically.
+        """
+        x, y, _ = self.get_tool_pos()
+        return self.move_to_world(x, y, self.config.clearance_z)
+
+    def __repr__(self) -> str:  # pragma: no cover
         return f"Arm('{self.name}')"

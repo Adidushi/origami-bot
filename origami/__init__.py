@@ -1,26 +1,18 @@
 """Origami folding framework for UR arms + Robotiq gripper on a magnetic board.
 
-Work in **board coordinates** (a 2D ``(x, y)`` frame on the magnetic board, plus
-a *height above the board*); the framework converts to robot poses, drives the
-arms, and keeps an analytic model of the paper and magnets in sync after every
-operation.
-
-The transform and pose algebra is built on `spatialmath` (with
-`scipy` for calibration fitting), not hand-rolled.
+Work in **world coordinates** -- a 3D frame centred on the board where x and y
+span the board surface and z is height above it (z=0 = board surface).  The
+framework converts world targets to robot TCP poses, drives the arms, and keeps
+an analytic model of the paper and magnets in sync after every operation.
 
 Quick start (simulation, no hardware)
--------------------------------------
->>> from origami import Workspace, demos
+--------------------------------------
+>>> from origami import Workspace
 >>> ws = Workspace.simulated()
->>> _ = demos.fold_dart(ws, verbose=False)
->>> ws.paper                                  # doctest: +ELLIPSIS
-Paper('paper', ...)
-
-Top-level exports cover the common pieces; submodules hold the details.
 """
 from __future__ import annotations
 
-from . import actions, config, demos, geometry
+from . import actions, config, geometry
 from .arm import Arm, ArmConfig
 from .backends import (
     RobotiqGripperBackend,
@@ -28,7 +20,7 @@ from .backends import (
     SimulatedArmBackend,
     SimulatedGripperBackend,
 )
-from .calibration import BoardCalibration
+from .coords import ArmCalibration
 from .geometry import FoldLine
 from .magnets import BlockMagnet, LBracketMagnet, Magnet, MagnetRegistry
 from .paper import Fold, Paper
@@ -38,12 +30,11 @@ __all__ = [
     # submodules
     "actions",
     "config",
-    "demos",
     "geometry",
+    # coordinates
+    "ArmCalibration",
     # geometry
     "FoldLine",
-    # calibration
-    "BoardCalibration",
     # paper
     "Paper",
     "Fold",

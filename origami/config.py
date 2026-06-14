@@ -1,13 +1,13 @@
 """Project configuration: robot endpoints, board geometry and taught calibrations.
 
 The corner poses below were recorded from the arms (see ``mvmt/get.py`` /
-``mvmt/record.py``).  They are fed to `BoardCalibration`
-to fit each arm's board-to-base transform.  Re-teach them whenever the board or
+``mvmt/record.py``).  They are fed to `ArmCalibration.from_taught_corners` to
+fit each arm's world-to-base transform.  Re-teach them whenever the board or
 tool changes, then update these dictionaries.
 """
 from __future__ import annotations
 
-from .calibration import BoardCalibration
+from .coords import ArmCalibration
 
 # --------------------------------------------------------------------------- #
 # Network
@@ -22,11 +22,11 @@ GRIPPER_IP = "192.168.56.101"
 GRIPPER_PORT = 63352
 
 # --------------------------------------------------------------------------- #
-# Board geometry (metres)
+# Board / world geometry (metres)
 # --------------------------------------------------------------------------- #
-#: Working width of the magnetic board along the board ``+x`` axis (metres).
+#: Board extent along world +x (metres).
 BOARD_WIDTH = 0.37
-#: Working height of the magnetic board along the board ``+y`` axis (metres).
+#: Board extent along world +y (metres).
 BOARD_HEIGHT = 0.27
 #: Default paper width (metres).
 PAPER_WIDTH = 0.21
@@ -34,9 +34,9 @@ PAPER_WIDTH = 0.21
 PAPER_HEIGHT = 0.297
 
 # --------------------------------------------------------------------------- #
-# Taught corner poses (UR poses), keyed by corner name, from mvmt/get.py.
+# Taught corner poses (UR TCP poses) recorded from the arms via mvmt/get.py.
 # --------------------------------------------------------------------------- #
-#: Recorded left-arm TCP poses at the four board corners.
+#: Left-arm TCP poses at the four board corners.
 LEFT_ARM_CORNERS = {
     "bottom_right": [-0.3811126487291087, 0.5916647198316248, -0.25001351102176717,
                      -0.0017339176957592841, 3.139994045314482, 0.00013657689149166203],
@@ -48,7 +48,7 @@ LEFT_ARM_CORNERS = {
                     -0.05344966348740266, 3.0601583065307283, 0.045224651625265795],
 }
 
-#: Recorded right-arm TCP poses at the four board corners.
+#: Right-arm TCP poses at the four board corners.
 RIGHT_ARM_CORNERS = {
     "top_right": [-0.1320102015841494, -0.37458099868781475, 0.016177005139537792,
                   7.130459517859422e-06, 3.14001135938399, 2.4104940535007586e-06],
@@ -61,21 +61,11 @@ RIGHT_ARM_CORNERS = {
 }
 
 
-def left_calibration() -> BoardCalibration:
-    """Fit the left arm's board-to-base calibration from its taught corners.
-
-    Returns
-    -------
-    origami.calibration.BoardCalibration
-    """
-    return BoardCalibration.from_taught_corners(LEFT_ARM_CORNERS, BOARD_WIDTH, BOARD_HEIGHT)
+def left_calibration() -> ArmCalibration:
+    """Fit the left arm's world-to-base calibration from its taught corners."""
+    return ArmCalibration.from_taught_corners(LEFT_ARM_CORNERS, BOARD_WIDTH, BOARD_HEIGHT)
 
 
-def right_calibration() -> BoardCalibration:
-    """Fit the right arm's board-to-base calibration from its taught corners.
-
-    Returns
-    -------
-    origami.calibration.BoardCalibration
-    """
-    return BoardCalibration.from_taught_corners(RIGHT_ARM_CORNERS, BOARD_WIDTH, BOARD_HEIGHT)
+def right_calibration() -> ArmCalibration:
+    """Fit the right arm's world-to-base calibration from its taught corners."""
+    return ArmCalibration.from_taught_corners(RIGHT_ARM_CORNERS, BOARD_WIDTH, BOARD_HEIGHT)
