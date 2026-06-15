@@ -37,6 +37,46 @@ _CONTENT_TYPES = {
 }
 
 
+def _point_on_segment(point: np.ndarray, start: np.ndarray, end: np.ndarray,
+                      tolerance: float = ON_LINE_TOLERANCE) -> bool:
+    """Return whether ``point`` lies on the segment ``start``--``end``."""
+    segment = end - start
+    length_sq = float(np.dot(segment, segment))
+    if length_sq <= tolerance ** 2:
+        return float(np.linalg.norm(point - start)) <= tolerance
+    projected = float(np.dot(point - start, segment)) / length_sq
+    if projected < -tolerance or projected > 1.0 + tolerance:
+        return False
+    nearest = start + projected * segment
+    return float(np.linalg.norm(point - nearest)) <= tolerance
+
+
+def _point_in_polygon(point, polygon, tolerance: float = ON_LINE_TOLERANCE) -> bool:
+    """Return whether ``point`` is inside (or on) ``polygon``."""
+    pts = np.atleast_2d(np.asarray(polygon, dtype=float))
+    if pts.shape[0] < 3:
+        return False
+    xy = np.asarray(point, dtype=float).reshape(2)
+
+    for i in range(len(pts)):
+        a = pts[i]
+        b = pts[(i + 1) % len(pts)]
+        if _point_on_segment(xy, a, b, tolerance=tolerance):
+            return True
+
+    x, y = float(xy[0]), float(xy[1])
+    inside = False
+    for i in range(len(pts)):
+        x1, y1 = float(pts[i, 0]), float(pts[i, 1])
+        x2, y2 = float(pts[(i + 1) % len(pts), 0]), float(pts[(i + 1) % len(pts), 1])
+        if (y1 > y) == (y2 > y):
+            continue
+        x_cross = x1 + ((y - y1) * (x2 - x1)) / (y2 - y1)
+        if x_cross >= x - tolerance:
+            inside = not inside
+    return inside
+
+
 def _discover_static_files() -> dict[str, Path]:
     """Map each servable file name to its real path under ``STATIC_DIR``.
 
@@ -163,7 +203,7 @@ class WorkspaceController:
             return self._state_unlocked()
 
     def fold(self, p1, p2, moving_side: int, style: str = "valley",
-             label: str = "") -> dict[str, Any]:
+             label: str = "", target_point=None) -> dict[str, Any]:
         """Fold along the line through ``p1`` and ``p2``.
 
         ``moving_side`` is ``+1`` or ``-1`` and selects which half-plane of the
@@ -173,13 +213,39 @@ class WorkspaceController:
         sign = 1 if moving_side >= 0 else -1
         with self._lock:
             self._snapshot()
+            moving_names = [
+                name for name, point in self.paper.landmarks.items()
+                if line.side_of(point) == sign
+            ]
+            if target_point is not None:
+                target = np.asarray(target_point, dtype=float).reshape(2)
+                top_surface = self._top_surface_polygon(target)
+                if top_surface is not None:
+                    top_layer_names = [
+                        name for name in moving_names
+                        if _point_in_polygon(self.paper.landmarks[name], top_surface)
+                    ]
+                    if top_layer_names:
+                        moving_names = top_layer_names
             self.paper.fold(
                 line,
-                moving_region=lambda xy: line.side_of(xy) == sign,
+                moving_region=moving_names,
                 style=style,
                 label=label,
             )
             return self._state_unlocked()
+
+    def _top_surface_polygon(self, point: np.ndarray) -> np.ndarray | None:
+        """Return the topmost visible paper polygon containing ``point``."""
+        top: np.ndarray | None = None
+        base = self.paper.landmark_array()
+        if _point_in_polygon(point, base):
+            top = base
+        for fold in self.paper.folds:
+            for flap in fold.flaps:
+                if len(flap) >= 3 and _point_in_polygon(point, flap):
+                    top = flap
+        return top
 
     def rotate(self, angle_deg: float, pivot=None) -> dict[str, Any]:
         """Rotate the whole sheet by ``angle_deg`` degrees (counter-clockwise)."""
@@ -325,7 +391,8 @@ def _make_handler(controller: WorkspaceController) -> type[BaseHTTPRequestHandle
                 elif path == "/api/fold":
                     state = controller.fold(
                         body["p1"], body["p2"], int(body.get("moving_side", 1)),
-                        str(body.get("style", "valley")), str(body.get("label", "")))
+                        str(body.get("style", "valley")), str(body.get("label", "")),
+                        body.get("target_point"))
                 elif path == "/api/rotate":
                     state = controller.rotate(float(body["angle_deg"]), body.get("pivot"))
                 elif path == "/api/translate":

@@ -285,6 +285,7 @@ canvas.addEventListener("click", (evt) => {
     p1: pending[0],
     p2: pending[1],
     moving_side: side,
+    target_point: point,
     style: document.getElementById("foldStyle").value,
     label: document.getElementById("foldLabel").value,
   };
