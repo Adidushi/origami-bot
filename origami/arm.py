@@ -36,6 +36,7 @@ Convenience moves
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from . import backends as backends_mod
@@ -173,7 +174,8 @@ class Arm:
                       tool_rotation: float = 0.0,
                       speed: float | None = None,
                       acceleration: float | None = None,
-                      motion: str = "linear") -> bool:
+                      motion: str = "linear",
+                      sideways: bool = False) -> bool:
         """Move to a world position.
 
         Parameters
@@ -186,9 +188,12 @@ class Arm:
             Override config defaults.
         motion : {'linear', 'joint'}
             Passed through to `move_to_tcp`.  Default ``'linear'``.
+        sideways : bool, optional
+            When ``True`` the gripper is oriented horizontally for a side
+            approach (see `ArmCalibration.gripper_orientation`).
         """
         return self.move_to_tcp(
-            self.world_to_tcp(x, y, z, tool_rotation),
+            self.world_to_tcp(x, y, z, tool_rotation, sideways),
             speed, acceleration, motion,
         )
 
@@ -260,7 +265,8 @@ class Arm:
     # Coordinate conversion (no motion)
     # ------------------------------------------------------------------ #
     def world_to_tcp(self, x: float, y: float, z: float,
-                     tool_rotation: float = 0.0) -> list[float]:
+                     tool_rotation: float = 0.0,
+                     sideways: bool = False) -> list[float]:
         """Convert a world position to a full TCP pose (no motion).
 
         Parameters
@@ -269,13 +275,15 @@ class Arm:
             World coordinates.
         tool_rotation : float, optional
             Gripper spin about the board normal (radians).  Default 0.
+        sideways : bool, optional
+            When ``True`` the gripper is oriented horizontally.
 
         Returns
         -------
         list of float
             ``[x, y, z, rx, ry, rz]`` ready for ``moveL``.
         """
-        return self.calibration.tcp_pose(x, y, z, tool_rotation)
+        return self.calibration.tcp_pose(x, y, z, tool_rotation, sideways)
 
     def tcp_to_world(self, pose: list[float]) -> tuple[float, float, float]:
         """Convert a TCP pose to world coordinates (no motion).
@@ -298,7 +306,8 @@ class Arm:
     # ------------------------------------------------------------------ #
     def move_to_clearance(self, x: float, y: float,
                           tool_rotation: float = 0.0,
-                          motion: str = "linear") -> bool:
+                          motion: str = "linear",
+                          sideways: bool = False) -> bool:
         """Move to safe transit height above ``(x, y)``.
 
         Defaults to joint-space motion (faster transit, curved path is fine
@@ -312,8 +321,11 @@ class Arm:
             Gripper spin about the board normal.  Default 0.
         motion : {'joint', 'linear'}, optional
             Motion type.  Default ``'joint'``.
+        sideways : bool, optional
+            When ``True`` the gripper is oriented horizontally.
         """
-        return self.move_to_world(x, y, self.config.clearance_z, tool_rotation, motion=motion)
+        return self.move_to_world(x, y, self.config.clearance_z, tool_rotation,
+                                  motion=motion, sideways=sideways)
 
     def press(self, x: float, y: float, tool_rotation: float = 0.0) -> bool:
         """Drive the tool onto the board surface at ``(x, y)``.
@@ -337,6 +349,35 @@ class Arm:
         """
         x, y, _ = self.get_tool_pos()
         return self.move_to_world(x, y, self.config.clearance_z)
+
+    def ensure_elbow_up(self) -> None:
+        """Flip to elbow-up configuration if the IK landed elbow-down.
+
+        When the gripper is sideways, ``moveL`` may choose a solution where
+        wrist 2 (joint 3) leaves the arm bent downward, risking a table
+        collision during the horizontal slide-in.  This re-solves the IK for
+        the same TCP pose with wrist 2 hinted to the elbow-up half, then moves
+        there via joint-space motion so subsequent ``moveL`` calls stay in the
+        correct configuration.
+
+        The check and flip are both based on ``sin(joints[3])`` rather than
+        the raw angle, which is correct across the full joint range [-2π, 2π]:
+        sin > 0 ↔ angle is in (0, π) mod 2π ↔ elbow-up.  The flip adds or
+        subtracts π depending on which direction keeps the result in range.
+
+        Safe to call at any height; no-op if the arm is already elbow-up.
+        """
+        joints = list(self.backend.current_joint_angles())
+        if math.sin(joints[3]) >= 0:
+            return  # already elbow-up across the full [-2π, 2π] range
+        hint = list(joints)
+        # Add π when below π (result lands in (0, π)); subtract when above
+        # (result also lands in (0, π)).  Both stay within [-2π, 2π].
+        hint[3] = joints[3] + math.pi if joints[3] < math.pi else joints[3] - math.pi
+        q_solution = self.backend.get_inverse_kinematics(self.current_tcp_pose(), hint)
+        if q_solution is not None:
+            self.backend.move_joints(q_solution, self.config.joint_speed,
+                                     self.config.joint_acceleration)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Arm('{self.name}')"

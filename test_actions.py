@@ -15,6 +15,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 
 import numpy as np
@@ -275,6 +276,91 @@ def test_flip_paper(ws: Workspace) -> None:
           "flip recorded in paper history")
 
 
+def test_grip_paper(ws: Workspace) -> None:
+    step("10 · grip_paper — A4 centred on board, grip bottom edge from below")
+
+    # A4 is 297 mm tall but the board is only 270 mm tall, so centring the sheet
+    # gives a natural (297 - 270) / 2 = 13.5 mm overhang on both the top and
+    # bottom edges — no artificial translation needed.
+    paper_w = origami.config.PAPER_WIDTH    # 0.21 m (landscape width)
+    paper_h = origami.config.PAPER_HEIGHT   # 0.297 m (portrait height)
+    board_cx = origami.config.BOARD_WIDTH  / 2   # 0.185 m
+    board_cy = origami.config.BOARD_HEIGHT / 2   # 0.135 m
+
+    # Bottom-left corner of the centred sheet.  origin_y is negative because the
+    # sheet extends below the board boundary (y = 0).
+    origin_x = board_cx - paper_w / 2
+    origin_y = board_cy - paper_h / 2
+
+    ws.paper = Paper.rectangle(paper_w, paper_h, origin=(origin_x, origin_y))
+
+    bottom_y = origin_y          # y-coordinate of the bottom edge (< 0 → off board)
+    overhang_mm = -bottom_y * 1000
+
+    info("paper origin", f"({origin_x:.4f}, {origin_y:.4f})")
+    info("bottom-edge y", f"{bottom_y:.4f}  →  {overhang_mm:.1f} mm overhang below board")
+    check(bottom_y < -actions.GRIP_OVERHANG_MIN,
+          f"bottom edge overhangs by at least {actions.GRIP_OVERHANG_MIN * 1000:.0f} mm")
+
+    # Grip the midpoint of the bottom edge.
+    grip_x = board_cx    # horizontal centre — equidistant from left and right sides
+    grip_y = bottom_y    # right on the bottom edge of the sheet
+
+    # grip_angle = π/2 sets the approach direction to +y: the arm starts
+    # PAPER_APPROACH_OFFSET below the grip point (further outside the board) and
+    # slides horizontally in the +y direction to straddle the edge.
+    actions.grip_paper(ws, x=grip_x, y=grip_y, grip_angle=math.pi / 2, arm="left")
+
+    px, py, pz = ws.left.get_tool_pos()
+    info("arm pos after grip", f"({px:.4f}, {py:.4f}, {pz:.4f})")
+    check(abs(px - grip_x) < 0.005, f"arm x at grip centre ({grip_x:.4f} m)")
+    check(abs(py - grip_y) < 0.005, f"arm y at bottom edge ({grip_y:.4f} m)")
+    check(abs(pz - actions.PAPER_GRIP_HEIGHT) < 0.005,
+          f"arm z at paper grip height ({actions.PAPER_GRIP_HEIGHT * 1000:.1f} mm)")
+
+
+def test_grip_paper_corner(ws: Workspace) -> None:
+    step("11 · grip_paper — bottom-right corner, 45° diagonal approach")
+
+    # Same A4 centred-on-board layout as test 10.  The bottom edge overhangs
+    # the board by ~13.5 mm, so both bottom corners are reachable from outside.
+    paper_w = origami.config.PAPER_WIDTH
+    paper_h = origami.config.PAPER_HEIGHT
+    board_cx = origami.config.BOARD_WIDTH  / 2
+    board_cy = origami.config.BOARD_HEIGHT / 2
+
+    origin_x = board_cx - paper_w / 2
+    origin_y = board_cy - paper_h / 2
+
+    ws.paper = Paper.rectangle(paper_w, paper_h, origin=(origin_x, origin_y))
+
+    # Bottom-right corner: right edge of the sheet at the bottom.
+    grip_x = origin_x + paper_w  # right edge of the paper
+    grip_y = origin_y             # bottom edge (< 0 → below board)
+
+    info("bottom-right corner", f"({grip_x:.4f}, {grip_y:.4f})")
+    info("y overhang", f"{-grip_y * 1000:.1f} mm below board edge (y = 0)")
+    check(grip_y < -actions.GRIP_OVERHANG_MIN,
+          f"corner overhangs board by at least {actions.GRIP_OVERHANG_MIN * 1000:.0f} mm")
+
+    # grip_angle = 3π/4 (135°): the arm starts diagonally below-right of the
+    # corner and slides toward upper-left to reach it.
+    #   cos(3π/4) = -1/√2  →  x_start = grip_x + OFFSET/√2  (to the right)
+    #   sin(3π/4) = +1/√2  →  y_start = grip_y − OFFSET/√2  (below)
+    # This bisects the angle between the bottom edge and the right edge,
+    # the natural approach direction for this corner.
+    grip_angle = 3 * math.pi / 4
+
+    actions.grip_paper(ws, x=grip_x, y=grip_y, grip_angle=grip_angle, arm="left")
+
+    px, py, pz = ws.right.get_tool_pos()
+    info("arm pos after grip", f"({px:.4f}, {py:.4f}, {pz:.4f})")
+    check(abs(px - grip_x) < 0.005, f"arm x at corner ({grip_x:.4f} m)")
+    check(abs(py - grip_y) < 0.005, f"arm y at corner ({grip_y:.4f} m)")
+    check(abs(pz - actions.PAPER_GRIP_HEIGHT) < 0.005,
+          f"arm z at paper grip height ({actions.PAPER_GRIP_HEIGHT * 1000:.1f} mm)")
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
@@ -301,7 +387,9 @@ def main() -> None:
     # test_grip_edge(ws)
     # test_move_paper(ws)
     # test_rotate_paper(ws)
-    test_flip_paper(ws)
+    # test_flip_paper(ws)
+    # test_grip_paper(ws)
+    test_grip_paper_corner(ws)
 
     print(f"\n{'=' * 60}")
     print("  All tests passed.")

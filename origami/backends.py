@@ -47,6 +47,15 @@ class ArmBackend(Protocol):
         """Return the current joint angles ``[j0..j5]`` in radians."""
         ...
 
+    def get_inverse_kinematics(self, pose: Sequence[float],
+                               q_near: Sequence[float]) -> list[float] | None:
+        """Compute joint angles for ``pose`` seeded from ``q_near``.
+
+        Returns a 6-element joint-angle list, or ``None`` if no solution was
+        found near the seed.
+        """
+        ...
+
 
 @runtime_checkable
 class GripperBackend(Protocol):
@@ -108,6 +117,11 @@ class RTDEArmBackend:
 
     def current_joint_angles(self) -> list[float]:
         return list(self.receive.getActualQ())
+
+    def get_inverse_kinematics(self, pose: Sequence[float],
+                               q_near: Sequence[float]) -> list[float] | None:
+        result = self.control.getInverseKinematics(list(pose), list(q_near))
+        return list(result) if len(result) == 6 else None
 
 
 class RobotiqGripperBackend:
@@ -185,6 +199,11 @@ class SimulatedArmBackend:
 
     def current_joint_angles(self) -> list[float]:
         return list(self._joints)
+
+    def get_inverse_kinematics(self, _pose: Sequence[float],
+                               q_near: Sequence[float]) -> list[float] | None:
+        # No kinematics model in simulation — return the seed unchanged.
+        return list(q_near)
 
 
 class SimulatedGripperBackend:
