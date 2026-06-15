@@ -114,6 +114,25 @@ class ArmCalibration:
         Corner world coordinates: ``bottom_left=(0,0,0)``,
         ``bottom_right=(width,0,0)``, ``top_left=(0,height,0)``,
         ``top_right=(width,height,0)`` -- all on the board surface.
+
+        Z-axis handling
+        ~~~~~~~~~~~~~~~
+        The z coordinate of each taught corner pose is the exact board surface
+        height in that arm's base frame (the corners are taught by touching the
+        board).  Because the board is flat, all corners share the same arm-frame
+        z, and the arms are mounted with their z-axis perpendicular to the board,
+        so world +z and arm +z are the same direction.
+
+        This method uses those facts directly instead of inferring the z-axis
+        from the Procrustes fit (which is unconstrained in z because all world
+        points are at z = 0):
+
+        1. The board surface height ``board_z_arm`` is taken as the mean of the
+           corner z coordinates — the ground-truth offset for world z = 0.
+        2. World +z is forced to equal arm +z (``R[:, 2] = [0, 0, 1]``).
+        3. The x-axis from the Procrustes fit is projected onto the board plane
+           and y is recomputed as ``z × x`` to keep the frame right-handed.
+        4. The translation z-component is pinned to ``board_z_arm`` exactly.
         """
         corner_xy = {
             "bottom_left": (0.0, 0.0),
@@ -126,7 +145,33 @@ class ArmCalibration:
             if name in corner_poses:
                 world_points.append(corner_xy[name])
                 arm_points.append(np.asarray(corner_poses[name], dtype=float)[:3])
-        return cls.from_point_correspondences(world_points, arm_points)
+
+        # Board surface z in arm frame — read directly from the corner poses.
+        board_z_arm = float(np.mean([
+            np.asarray(corner_poses[n], dtype=float)[2]
+            for n in cls._CORNER_ORDER if n in corner_poses
+        ]))
+
+        # Procrustes fit gives us the x/y rotation from corner positions.
+        base = cls.from_point_correspondences(world_points, arm_points)
+        R = np.asarray(base.world_to_arm.R, dtype=float)
+
+        # World +z = arm +z: project the fitted x onto the board plane,
+        # recompute y = z × x, keep z = [0, 0, 1].
+        x = np.array([R[0, 0], R[1, 0], 0.0])
+        x /= np.linalg.norm(x)
+        z = np.array([0.0, 0.0, 1.0])
+        y = np.cross(z, x)
+        R_new = np.column_stack([x, y, z])
+
+        # Least-squares translation from the centroid equation, then pin z.
+        src = np.atleast_2d(np.asarray(world_points, dtype=float))
+        src = np.hstack([src, np.zeros((src.shape[0], 1))])
+        dst = np.asarray(arm_points, dtype=float)
+        t = dst.mean(axis=0) - R_new @ src.mean(axis=0)
+        t[2] = board_z_arm
+
+        return cls(SE3.Rt(SO3(R_new, check=False), t))
 
     # ------------------------------------------------------------------ #
     # Coordinate conversion (internal — Arm is the public interface)

@@ -35,12 +35,13 @@ import numpy as np
 
 from .magnets import Magnet
 from .workspace import Workspace
+import time
 
 # ---------------------------------------------------------------------------
 # Physical constants
 # ---------------------------------------------------------------------------
 #: Clearance above a magnet grip point when approaching / leaving (metres).
-MAGNET_APPROACH_CLEARANCE = 0.05
+MAGNET_APPROACH_CLEARANCE = 0.08
 
 #: World z at which to close the gripper on paper (just above board surface).
 PAPER_GRIP_HEIGHT = 0.001
@@ -48,6 +49,8 @@ PAPER_GRIP_HEIGHT = 0.001
 #: Minimum overhang beyond the board boundary (metres) required to grip paper.
 GRIP_OVERHANG_MIN = 0.005
 
+MAGNET_GRIP_OPEN_POS = 0.6
+MAGNET_GRIP_CLOSE_POS = 0.8
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -103,23 +106,29 @@ def _grip_paper_at(arm, pos) -> None:
     arm.move_to_world(x, y, MAGNET_APPROACH_CLEARANCE)
 
 
-def _grip_magnet_at(arm, x: float, y: float, grip_height: float,
+def _grip_magnet_at(arm, x: float, y: float, z: float,
                     tool_rotation: float) -> None:
     """Approach a magnet from above, descend to its grip height, close, retreat."""
-    clearance = grip_height + MAGNET_APPROACH_CLEARANCE
+    clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance, tool_rotation)
-    arm.move_to_world(x, y, grip_height, tool_rotation)
-    arm.grip()
+    arm.goto(MAGNET_GRIP_OPEN_POS)  # ensure gripper is open before descending
+    time.sleep(2)  # give the gripper a moment to open before moving down
+    arm.move_to_world(x, y, z, tool_rotation)
+    arm.goto(MAGNET_GRIP_CLOSE_POS)
+    # input("Time to measure magnet") # Remove this later - just for testing
+    time.sleep(2)  # give the gripper a moment to close before lifting
     arm.move_to_world(x, y, clearance, tool_rotation)
 
 
-def _release_magnet_at(arm, x: float, y: float, grip_height: float,
+def _release_magnet_at(arm, x: float, y: float, z: float,
                        tool_rotation: float) -> None:
     """Carry to board position, descend to release height, open, retreat."""
-    clearance = grip_height + MAGNET_APPROACH_CLEARANCE
+    clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance, tool_rotation)
-    arm.move_to_world(x, y, grip_height, tool_rotation)
-    arm.release()
+    arm.move_to_world(x, y, z, tool_rotation)
+    arm.goto(MAGNET_GRIP_OPEN_POS)
+    # input("Time to measure magnet") # Remove this later - just for testing
+    time.sleep(2)  # give the gripper a moment to open before moving
     arm.move_to_world(x, y, clearance, tool_rotation)
 
 
@@ -149,7 +158,7 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     if magnet.tray_position is not None:
         pick = np.asarray(magnet.tray_position, dtype=float)
         _grip_magnet_at(arm, float(pick[0]), float(pick[1]),
-                        magnet.grip_height, magnet.orientation)
+                        float(pick[2]) + magnet.grip_height, magnet.orientation)
 
     _release_magnet_at(arm, x, y, magnet.grip_height, orientation)
     magnet.place_at(x, y, orientation)
@@ -203,9 +212,10 @@ def remove_magnet(workspace: Workspace, identifier: str,
     if magnet.tray_position is not None:
         home = np.asarray(magnet.tray_position, dtype=float)
         _release_magnet_at(arm, float(home[0]), float(home[1]),
-                           magnet.grip_height, magnet.orientation)
+                           float(home[2]) + magnet.grip_height, magnet.orientation)
     else:
-        arm.release()
+        arm.goto(MAGNET_GRIP_OPEN_POS)
+        time.sleep(2)  # give the gripper a moment to open before lifting
         arm.lift()
 
     magnet.stow()

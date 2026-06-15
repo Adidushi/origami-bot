@@ -77,24 +77,25 @@ right_arm = {
 # for pose in right_arm.values():
     # right_control.moveL(pose, speed=0.3)
 
-right_gripper.open()
+# right_gripper.open()
 
-joints = right_receive.getActualQ()
-joints[-1] = 0
-right_control.moveJ(joints)
+# joints = right_receive.getActualQ()
+# joints[-1] = 0
+# right_control.moveJ(joints)
 
 pos = right_receive.getActualTCPPose()
-pos[0] += 15/100
-right_control.moveL(pos)
+# pos[0] += 15/100
+# right_control.moveL(pos)
 
-pos = right_arm['bottom_right']
+# pos = right_arm['bottom_right']
 #pos[2] += 10/100 # temp line for debug
-pos[2] += 7.65/100
-right_control.moveL(pos)
+# pos[2] += 7.65/100
+# right_control.moveL(pos)
 
 left_pos = left_arm['top_left']
 left_pos[2] += 7.65/100
-left_control.moveL(left_pos)
+# left_control.moveL(left_pos)
+left_control.moveL([-0.367531951597368, 0.22571398590843167, -0.14991709634646883, -2.203181041396198, -2.2392582732147384, 2.6630845159005037e-05])
 
 right_gripper.close()
 input('advance?')

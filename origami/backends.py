@@ -64,6 +64,10 @@ class GripperBackend(Protocol):
         """Return the current gripper position (0 = open, 255 = closed)."""
         ...
 
+    def goto(self, percentage: float) -> None:
+        """Move the gripper to a given opening percentage (0 = open, 1 = closed)."""
+        ...
+
 
 # --------------------------------------------------------------------------- #
 # Real hardware
@@ -129,6 +133,10 @@ class RobotiqGripperBackend:
 
     def release(self) -> None:
         self._gripper.open()
+
+    def goto(self, percentage: float) -> None:
+        """Move the gripper to a given opening percentage (0 = open, 1 = closed)."""
+        self._gripper.move(int(percentage * 255))
 
     def opening(self) -> int:
         return int(self._gripper.position())
@@ -203,3 +211,8 @@ class SimulatedGripperBackend:
 
     def opening(self) -> int:
         return self._opening
+    
+    def goto(self, percentage: float) -> None:
+        """Move the gripper to a given opening percentage (0 = open, 1 = closed)."""
+        self._opening = int(percentage * 255)
+        self.log.append(f"goto {percentage}")

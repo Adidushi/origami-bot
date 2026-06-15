@@ -65,7 +65,7 @@ class ArmConfig:
     """
 
     clearance_z: float = 0.10
-    contact_depth: float = 0.002
+    contact_depth: float = 0
     speed: float = 0.25
     acceleration: float = 0.5
     joint_speed: float = 1.0
@@ -232,6 +232,11 @@ class Arm:
         if self.gripper is not None:
             self.gripper.release()
 
+    def goto(self, percentage: float) -> None:
+        """Set the gripper to a given opening percentage (0 = open, 1 = closed)."""
+        if self.gripper is not None:
+            self.gripper.goto(percentage)
+
     # ------------------------------------------------------------------ #
     # Joint control
     # ------------------------------------------------------------------ #
@@ -293,7 +298,7 @@ class Arm:
     # ------------------------------------------------------------------ #
     def move_to_clearance(self, x: float, y: float,
                           tool_rotation: float = 0.0,
-                          motion: str = "joint") -> bool:
+                          motion: str = "linear") -> bool:
         """Move to safe transit height above ``(x, y)``.
 
         Defaults to joint-space motion (faster transit, curved path is fine

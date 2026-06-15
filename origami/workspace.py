@@ -125,9 +125,9 @@ class Workspace:
         -------
         Workspace
         """
-        left = Arm.real("left", config.LEFT_ARM_IP, config.left_calibration(), config=arm_config)
+        left = Arm.real("left", config.LEFT_ARM_IP, config.left_calibration(), config=arm_config, gripper_ip=config.LEFT_ARM_IP, gripper_port=config.GRIPPER_PORT)
         right = Arm.real("right", config.RIGHT_ARM_IP, config.right_calibration(),
-                         gripper_ip=config.GRIPPER_IP, gripper_port=config.GRIPPER_PORT,
+                         gripper_ip=config.RIGHT_ARM_IP, gripper_port=config.GRIPPER_PORT,
                          config=arm_config)
         paper = paper or Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT, origin=(0.0, 0.0))
         return cls(left, right, paper, magnets or MagnetRegistry())
