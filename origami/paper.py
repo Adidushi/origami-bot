@@ -227,6 +227,7 @@ class Paper:
             self.landmarks[name] = self.landmarks[name] + off
         for fold in self.folds:
             fold.start, fold.end = fold.start + off, fold.end + off
+            fold.flaps = [flap + off for flap in fold.flaps]
         self.history.append(f"translate by {off.tolist()}")
         return self
 
@@ -251,6 +252,7 @@ class Paper:
         for fold in self.folds:
             fold.start = geo.rotate_points_about(fold.start, angle, pivot)[0]
             fold.end = geo.rotate_points_about(fold.end, angle, pivot)[0]
+            fold.flaps = [geo.rotate_points_about(flap, angle, pivot) for flap in fold.flaps]
         self.history.append(f"rotate {angle:.4f} rad about {np.round(pivot, 4).tolist()}")
         return self
 
@@ -294,6 +296,7 @@ class Paper:
         when available) is appended to `folds`.
         """
         names = self._select_landmarks(fold_line, moving_region)
+        self._reflect_prior_folds(fold_line, names)
         crease_points, flaps = self._apply_fold(fold_line, names)
         start, end = self._crease_endpoints(fold_line, crease_points)
         self.folds.append(Fold(start=start, end=end, style=style, label=label, flaps=flaps))
@@ -393,6 +396,32 @@ class Paper:
 
         self.landmarks = rebuilt
         return crease_points, self._extract_flaps(ordered)
+
+    def _reflect_prior_folds(self, fold_line: FoldLine, names: Iterable[str]) -> None:
+        """Move previously recorded fold geometry with a new fold operation.
+
+        Existing crease segments and back-face flap polygons are metadata tied to
+        the current paper pose, so when a new fold moves one half-plane, those
+        stored points must move with it.
+        """
+        selected = [self.landmarks[name] for name in names if name in self.landmarks]
+        if not selected:
+            return
+        offsets = [fold_line.signed_offset(point) for point in selected]
+        mean_offset = float(np.mean(offsets))
+        if abs(mean_offset) <= 1e-9:
+            return
+        moving_sign = 1 if mean_offset > 0.0 else -1
+
+        def _move_if_selected(point: np.ndarray) -> np.ndarray:
+            return (fold_line.reflect(point)
+                    if moving_sign * fold_line.signed_offset(point) > 1e-9
+                    else np.asarray(point, dtype=float).copy())
+
+        for fold in self.folds:
+            fold.start = _move_if_selected(fold.start)
+            fold.end = _move_if_selected(fold.end)
+            fold.flaps = [np.array([_move_if_selected(point) for point in flap]) for flap in fold.flaps]
 
     @staticmethod
     def _extract_flaps(ordered: list[tuple[np.ndarray, str]]) -> list[np.ndarray]:
