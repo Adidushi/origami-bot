@@ -88,8 +88,7 @@ function render() {
   computeView();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBoard();
-  drawPaper();
-  drawBackside();
+  drawFaces();
   drawCreases();
   drawMagnets();
   drawLandmarks();
@@ -149,6 +148,35 @@ function drawBackside() {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     });
+  });
+}
+
+function drawFaces() {
+  // When the server provides depth-ordered faces, render them bottom-to-top.
+  // Each face is coloured by which side of the paper is up: front = ivory,
+  // back (after a fold-over) = yellow.  Falls back to the legacy drawPaper /
+  // drawBackside pair when no face data is present.
+  const faces = state.paper.faces;
+  if (!faces || faces.length === 0) {
+    drawPaper();
+    drawBackside();
+    return;
+  }
+  // faces arrive pre-sorted by depth (lowest first) from the server.
+  faces.forEach((face) => {
+    if (!face.vertices || face.vertices.length < 3) return;
+    ctx.beginPath();
+    face.vertices.forEach((p, i) => {
+      const [px, py] = boardToPx(p[0], p[1]);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.closePath();
+    ctx.fillStyle = face.front_facing ? "rgba(244, 241, 232, 0.92)" : "#f2d23a";
+    ctx.fill();
+    ctx.strokeStyle = "#b9b29a";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   });
 }
 

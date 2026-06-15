@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 from ..geometry import FoldLine
-from ..paper import Paper
+from ..paper import Paper, PaperFace
 from ..workspace import Workspace
 
 STATIC_DIR = (Path(__file__).resolve().parent / "static").resolve()
@@ -154,6 +154,14 @@ class WorkspaceController:
             }
             for f in paper.folds
         ]
+        faces = [
+            {
+                "vertices": [[float(p[0]), float(p[1])] for p in face.vertices],
+                "depth": face.depth,
+                "front_facing": face.front_facing,
+            }
+            for face in sorted(paper.faces, key=lambda f: f.depth)
+        ]
         magnets = [
             {
                 "identifier": m.identifier,
@@ -174,6 +182,7 @@ class WorkspaceController:
                 "polygon": [[float(p[0]), float(p[1])] for p in paper.landmark_array()],
                 "centroid": [float(c) for c in paper.centroid()],
                 "folds": folds,
+                "faces": faces,
             },
             "magnets": magnets,
             "history": list(paper.history),
@@ -217,13 +226,19 @@ class WorkspaceController:
                 name for name, point in self.paper.landmarks.items()
                 if line.side_of(point) == sign
             ]
+            min_depth: int | None = None
             if target_point is not None:
                 target = np.asarray(target_point, dtype=float).reshape(2)
-                top_surface = self._top_surface_polygon(target)
-                if top_surface is not None:
+                top_face = self._top_face_at_point(target)
+                if top_face is not None:
+                    min_depth = top_face.depth
                     top_layer_names = [
                         name for name in moving_names
-                        if _point_in_polygon(self.paper.landmarks[name], top_surface)
+                        if any(
+                            _point_in_polygon(self.paper.landmarks[name], f.vertices)
+                            for f in self.paper.faces
+                            if f.depth >= min_depth
+                        )
                     ]
                     if top_layer_names:
                         moving_names = top_layer_names
@@ -232,19 +247,21 @@ class WorkspaceController:
                 moving_region=moving_names,
                 style=style,
                 label=label,
+                fold_from_depth=min_depth,
             )
             return self._state_unlocked()
 
-    def _top_surface_polygon(self, point: np.ndarray) -> np.ndarray | None:
-        """Return the topmost visible paper polygon containing ``point``."""
-        top: np.ndarray | None = None
-        base = self.paper.landmark_array()
-        if _point_in_polygon(point, base):
-            top = base
-        for fold in self.paper.folds:
-            for flap in fold.flaps:
-                if len(flap) >= 3 and _point_in_polygon(point, flap):
-                    top = flap
+    def _top_face_at_point(self, point: np.ndarray) -> "PaperFace | None":
+        """Return the face with the highest depth that contains ``point``.
+
+        Falls back to checking the landmark polygon when no faces are present
+        (legacy papers created without the face model).
+        """
+        top: PaperFace | None = None
+        for face in self.paper.faces:
+            if _point_in_polygon(point, face.vertices):
+                if top is None or face.depth > top.depth:
+                    top = face
         return top
 
     def rotate(self, angle_deg: float, pivot=None) -> dict[str, Any]:
