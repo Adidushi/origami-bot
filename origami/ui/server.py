@@ -76,6 +76,7 @@ class WorkspaceController:
         else:
             self.workspace = Workspace.simulated()
         self._undo: list[Paper] = []
+        self._redo: list[Paper] = []
 
     # ------------------------------------------------------------------ #
     # Internal helpers
@@ -87,6 +88,7 @@ class WorkspaceController:
     def _snapshot(self) -> None:
         """Push a deep copy of the current paper onto the undo stack."""
         self._undo.append(self.paper.copy())
+        self._redo.clear()
 
     # ------------------------------------------------------------------ #
     # State serialisation
@@ -140,6 +142,7 @@ class WorkspaceController:
                 "right": len(self.workspace.right.backend.log),
             },
             "can_undo": bool(self._undo),
+            "can_redo": bool(self._redo),
         }
 
     # ------------------------------------------------------------------ #
@@ -156,6 +159,7 @@ class WorkspaceController:
                 paper = Paper.rectangle(width, height, origin=(0.0, 0.0))
             self.workspace.paper = paper
             self._undo.clear()
+            self._redo.clear()
             return self._state_unlocked()
 
     def fold(self, p1, p2, moving_side: int, style: str = "valley",
@@ -195,7 +199,16 @@ class WorkspaceController:
         """Restore the most recent snapshot, if any."""
         with self._lock:
             if self._undo:
+                self._redo.append(self.paper.copy())
                 self.workspace.paper = self._undo.pop()
+            return self._state_unlocked()
+
+    def redo(self) -> dict[str, Any]:
+        """Restore the next snapshot after an undo, if any."""
+        with self._lock:
+            if self._redo:
+                self._undo.append(self.paper.copy())
+                self.workspace.paper = self._redo.pop()
             return self._state_unlocked()
 
     def reset(self) -> dict[str, Any]:
@@ -203,6 +216,7 @@ class WorkspaceController:
         with self._lock:
             self.workspace = Workspace.simulated()
             self._undo.clear()
+            self._redo.clear()
             return self._state_unlocked()
 
     def fold_dart(self) -> dict[str, Any]:
@@ -318,6 +332,8 @@ def _make_handler(controller: WorkspaceController) -> type[BaseHTTPRequestHandle
                     state = controller.translate(float(body["dx"]), float(body["dy"]))
                 elif path == "/api/undo":
                     state = controller.undo()
+                elif path == "/api/redo":
+                    state = controller.redo()
                 elif path == "/api/reset":
                     state = controller.reset()
                 elif path == "/api/dart":

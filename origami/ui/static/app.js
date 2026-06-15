@@ -245,6 +245,7 @@ function renderHistory() {
 
 function updateControls() {
   document.getElementById("undoBtn").disabled = !state.can_undo;
+  document.getElementById("redoBtn").disabled = !state.can_redo;
   const cancelBtn = document.getElementById("cancelFold");
   cancelBtn.hidden = pending.length === 0;
   if (pending.length === 0) {
@@ -326,6 +327,11 @@ document.getElementById("dartBtn").addEventListener("click", () => {
 document.getElementById("undoBtn").addEventListener("click", () => {
   pending = [];
   call("/api/undo", {});
+});
+
+document.getElementById("redoBtn").addEventListener("click", () => {
+  pending = [];
+  call("/api/redo", {});
 });
 
 document.getElementById("resetBtn").addEventListener("click", () => {
