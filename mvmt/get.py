@@ -15,7 +15,6 @@ right_gripper = RobotiqGripper()
 right_gripper.connect("192.168.56.101", 63352)
 right_gripper.activate()   
 
-
 # current_position = right_receive.getActualTCPPose()
 # print(current_position)
 
@@ -164,8 +163,8 @@ def cirular_motion_test():
 
 
 # exit code
-right_gripper.disconnect()
 if __name__ == "__main__":
     main_movement()
     estimated_circular_motion()
+    right_gripper.disconnect()
     
