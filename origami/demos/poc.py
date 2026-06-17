@@ -59,9 +59,6 @@ def main() -> None:
     ws.paper = Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT,
                                origin=(origin_x, origin_y))
     
-    
-
-
     # Grip the bottom-right corner of the paper from the −y side (below board)
     grip_x = origin_x   # LEFT! edge of paper
     grip_y = origin_y                         # bottom edge, overhangs board
@@ -112,12 +109,12 @@ def main() -> None:
 
     # Fold axis at the board centre: folds the right half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
-    actions.fold_arc(
+    offsets = actions.fold_arc(
         ws,
         arm_side="right",
         radius=9.5/100,
         axis="x",
-        n_steps=12,
+        n_steps=4,
     )
 
     actions.crease(
@@ -128,6 +125,35 @@ def main() -> None:
         crease_length=config.PAPER_HEIGHT,
         axis="y"
     )
+
+    actions.unfold_arc(
+        ws,
+        arm_side="right",
+        offsets=offsets
+    )
+    ws.arm(side='right').release()
+    ws.arm(side='right').move_offset_world(0,-2/100,0)
+    ws.arm(side='right').go_home()
+
+    actions.remove_magnet(ws, 'block_a', carrying_arm="left")
+    actions.remove_magnet(ws, 'block_b', carrying_arm="left")
+    ws.arm(side='left').go_home()
+
+    grip_x = config.BOARD_WIDTH/2
+    actions.grip_paper(
+        workspace=ws, 
+        x=grip_x, 
+        y=grip_y, 
+        grip_angle=math.pi / 2, 
+        arm="right"
+    )
+
+    actions.flip_paper(workspace=ws, arm="right")
+    
+    ws.arm(side='right').release()
+    ws.arm(side='right').move_offset_world(0,-2/100,0)
+    ws.arm(side='right').go_home()
+
 
     print(f"\n{'=' * 60}")
     print("  Demo complete.")

@@ -234,6 +234,38 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
     a.move_to_world(x, y, PAPER_GRIP_HEIGHT, grip_angle, sideways=True)
     a.grip()
 
+def flip_paper(workspace: Workspace,
+               arm: str = "right") -> None:
+    """Grip the paper at an edge or corner by approaching horizontally from outside the board.
+
+    The paper is assumed to overhang the board at ``(x, y)``.  The arm transits
+    to the approach point at clearance height, descends to paper height, then
+    slides in horizontally along ``grip_angle`` to straddle the edge before
+    closing the gripper.
+
+    Parameters
+    ----------
+    workspace : Workspace
+    x, y : float
+        Board-plane position to grip (metres).  z is fixed to world z = 0
+        (the board/paper surface).
+    grip_angle : float
+        Direction the arm approaches from, as a rotation about the board normal
+        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside the board
+        in the ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in
+        to ``(x, y)``.  Use ``0`` to approach from the left (``-x``), ``π/2``
+        to approach from below (``-y``), etc.
+    arm : {'left', 'right'}, optional
+        Which arm performs the grip.  Default ``'right'``.
+    """
+
+    clearance = 0.2
+
+    a = workspace.arm(arm)
+    a.move_offset_world(0, 0, clearance)
+    a.rotate_joint(5, math.pi)
+    a.move_offset_world(0, 0, -clearance)
+
 
 # ===========================================================================
 # Fold actions
@@ -291,6 +323,7 @@ def fold_arc(
 
     previous_pos = start_pos
 
+    offsets = list()
     # calculate steps 
     for i in range(1, n_steps+1):
         # if radius is positive, fold to the right, else fold to the left
@@ -308,11 +341,27 @@ def fold_arc(
         #arm.move_to_world(*current_pos, 0, sideways=True)
         offset = [a-b for a,b in zip(current_pos,previous_pos)]
         print(offset)
+        offsets.append(offset)
         # divide by i since rotate joint is relative
         arm.rotate_joint(5, base_angle/i)
         arm.move_offset_world(*offset)
         
         previous_pos = current_pos.copy()
+    return offsets
+
+def unfold_arc(
+    workspace: Workspace,
+    arm_side: str,
+    offsets: list[list[float,float,float]]
+) -> None:
+    """Unfold paper by sweeping the gripped edge through a circular arc about a fold line.
+    """
+    arm = workspace.arm(arm_side)
+    angle = math.pi/len(offsets)
+    for offset in offsets[::-1]: # reverse the offsets to unfold
+        arm.rotate_joint(5, -angle)
+        arm.move_offset_world(*[-coord for coord in offset])
+    
 
 # afterwards move this out to a crease tool method?
 def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_angle: float,

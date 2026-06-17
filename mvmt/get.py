@@ -159,12 +159,10 @@ def cirular_motion_test():
     right_control.moveL(pos)
 
 
-
-
-
 # exit code
 if __name__ == "__main__":
-    main_movement()
-    estimated_circular_motion()
-    right_gripper.disconnect()
+    track_board_corners()
+    # main_movement()
+    # estimated_circular_motion()
+    # right_gripper.disconnect()
     
