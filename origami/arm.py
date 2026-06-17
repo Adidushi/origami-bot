@@ -4,6 +4,9 @@ World space is centred on the board: x/y across the surface, z = height above
 it (z=0 is the board surface).  `ArmCalibration` converts world targets into
 the arm's own base-frame TCP poses so the robot executes them correctly.
 
+All Cartesian motion uses linear interpolation (moveL).  Explicit joint-space
+control is available only through `move_to_joints` and `rotate_joint`.
+
 API summary
 -----------
 State
@@ -12,25 +15,26 @@ State
     get_tool_pos()          (x, y, z) in world space (alias for current_world_pos)
 
 Motion — arm (TCP) frame
-    move_to_tcp(pose, motion)   move to a raw TCP pose; motion='linear'|'joint'
+    move_to_tcp(pose)            move to a raw TCP pose via moveL
 
 Motion — world frame
-    move_to_world(x,y,z, motion)     move to world position
-    move_offset_world(dx,dy,dz)      relative move in world space
-    move_up(d) / move_down(d)        vertical offsets in world z
+    move_to_world(x,y,z)         move to world position via moveL
+    move_offset_world(dx,dy,dz)  relative move in world space via moveL
+    move_up(d) / move_down(d)    vertical offsets in world z via moveL
 
 Gripper
     grip() / release()
 
 Joint control
-    rotate_joint(joint, delta)  rotate one joint by a delta angle (radians)
+    move_to_joints(angles)        move to absolute joint angles
+    rotate_joint(joint, delta)    rotate one joint by a delta angle (radians)
 
 Coordinate conversion (no motion)
     world_to_tcp(x,y,z)     world position → full TCP pose
     tcp_to_world(pose)      TCP pose → world (x,y,z)
 
 Convenience moves
-    move_to_clearance(x,y)  joint-space transit to safe height above (x,y)
+    move_to_clearance(x,y)  linear transit to safe height above (x,y)
     press(x,y)              linear descent onto board surface at (x,y)
     lift()                  linear rise to clearance from current (x,y)
 """
@@ -71,6 +75,7 @@ class ArmConfig:
     acceleration: float = 0.5
     joint_speed: float = 1.0
     joint_acceleration: float = 1.4
+    home: list[float, float, float] | None = None
 
 
 class Arm:
@@ -139,15 +144,19 @@ class Arm:
         intent-revealing name for use in action planning.
         """
         return self.current_world_pos()
+    
+    def go_home(self):
+        home_pos = self.config.home
+        self.move_to_joints(home_pos)
+
 
     # ------------------------------------------------------------------ #
     # Motion — arm (TCP) frame
     # ------------------------------------------------------------------ #
     def move_to_tcp(self, pose: list[float],
                     speed: float | None = None,
-                    acceleration: float | None = None,
-                    motion: str = "linear") -> bool:
-        """Move to a raw TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame.
+                    acceleration: float | None = None) -> bool:
+        """Move to a raw TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame via moveL.
 
         Parameters
         ----------
@@ -155,16 +164,9 @@ class Arm:
             Target TCP pose.
         speed, acceleration : float or None
             Override config defaults.
-        motion : {'linear', 'joint'}
-            ``'linear'`` (default) — TCP traces a straight Cartesian line
-            (``moveL``); precise, use near paper and magnets.
-            ``'joint'`` — joint angles interpolate, curved TCP path
-            (``moveJ`` with IK); faster for large transit moves.
         """
         spd = speed or self.config.speed
         acc = acceleration or self.config.acceleration
-        if motion == "joint":
-            return self.backend.move_joint_space(pose, spd, acc)
         return self.backend.move_linear(pose, spd, acc)
 
     # ------------------------------------------------------------------ #
@@ -174,9 +176,8 @@ class Arm:
                       tool_rotation: float = 0.0,
                       speed: float | None = None,
                       acceleration: float | None = None,
-                      motion: str = "linear",
                       sideways: bool = False) -> bool:
-        """Move to a world position.
+        """Move to a world position via moveL.
 
         Parameters
         ----------
@@ -186,15 +187,13 @@ class Arm:
             Gripper spin about the board normal (radians).  Default 0.
         speed, acceleration : float or None
             Override config defaults.
-        motion : {'linear', 'joint'}
-            Passed through to `move_to_tcp`.  Default ``'linear'``.
         sideways : bool, optional
             When ``True`` the gripper is oriented horizontally for a side
             approach (see `ArmCalibration.gripper_orientation`).
         """
         return self.move_to_tcp(
             self.world_to_tcp(x, y, z, tool_rotation, sideways),
-            speed, acceleration, motion,
+            speed, acceleration,
         )
 
     def move_offset_world(self, dx: float, dy: float, dz: float,
@@ -245,6 +244,14 @@ class Arm:
     # ------------------------------------------------------------------ #
     # Joint control
     # ------------------------------------------------------------------ #
+    def move_to_joints(self, angles: list[float],
+                       speed: float | None = None,
+                       acceleration: float | None = None) -> bool:
+        """Move directly to absolute joint angles ``[j0..j5]`` (radians)."""
+        spd = speed or self.config.joint_speed
+        acc = acceleration or self.config.joint_acceleration
+        return self.backend.move_joints(angles, spd, acc)
+
     def rotate_joint(self, joint: int, delta: float) -> bool:
         """Rotate one joint by ``delta`` radians from its current angle.
 
@@ -306,12 +313,8 @@ class Arm:
     # ------------------------------------------------------------------ #
     def move_to_clearance(self, x: float, y: float,
                           tool_rotation: float = 0.0,
-                          motion: str = "linear",
                           sideways: bool = False) -> bool:
-        """Move to safe transit height above ``(x, y)``.
-
-        Defaults to joint-space motion (faster transit, curved path is fine
-        at clearance height where obstacles are absent).
+        """Move to safe transit height above ``(x, y)`` via moveL.
 
         Parameters
         ----------
@@ -319,13 +322,11 @@ class Arm:
             World target in board plane (metres).
         tool_rotation : float, optional
             Gripper spin about the board normal.  Default 0.
-        motion : {'joint', 'linear'}, optional
-            Motion type.  Default ``'joint'``.
         sideways : bool, optional
             When ``True`` the gripper is oriented horizontally.
         """
         return self.move_to_world(x, y, self.config.clearance_z, tool_rotation,
-                                  motion=motion, sideways=sideways)
+                                  sideways=sideways)
 
     def press(self, x: float, y: float, tool_rotation: float = 0.0) -> bool:
         """Drive the tool onto the board surface at ``(x, y)``.
@@ -349,35 +350,6 @@ class Arm:
         """
         x, y, _ = self.get_tool_pos()
         return self.move_to_world(x, y, self.config.clearance_z)
-
-    def ensure_elbow_up(self) -> None:
-        """Flip to elbow-up configuration if the IK landed elbow-down.
-
-        When the gripper is sideways, ``moveL`` may choose a solution where
-        wrist 2 (joint 3) leaves the arm bent downward, risking a table
-        collision during the horizontal slide-in.  This re-solves the IK for
-        the same TCP pose with wrist 2 hinted to the elbow-up half, then moves
-        there via joint-space motion so subsequent ``moveL`` calls stay in the
-        correct configuration.
-
-        The check and flip are both based on ``sin(joints[3])`` rather than
-        the raw angle, which is correct across the full joint range [-2π, 2π]:
-        sin > 0 ↔ angle is in (0, π) mod 2π ↔ elbow-up.  The flip adds or
-        subtracts π depending on which direction keeps the result in range.
-
-        Safe to call at any height; no-op if the arm is already elbow-up.
-        """
-        joints = list(self.backend.current_joint_angles())
-        if math.sin(joints[3]) >= 0:
-            return  # already elbow-up across the full [-2π, 2π] range
-        hint = list(joints)
-        # Add π when below π (result lands in (0, π)); subtract when above
-        # (result also lands in (0, π)).  Both stay within [-2π, 2π].
-        hint[3] = joints[3] + math.pi if joints[3] < math.pi else joints[3] - math.pi
-        q_solution = self.backend.get_inverse_kinematics(self.current_tcp_pose(), hint)
-        if q_solution is not None:
-            self.backend.move_joints(q_solution, self.config.joint_speed,
-                                     self.config.joint_acceleration)
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Arm('{self.name}')"

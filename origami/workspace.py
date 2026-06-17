@@ -43,6 +43,11 @@ class Workspace:
     magnets: MagnetRegistry = field(default_factory=MagnetRegistry)
     board_width: float = config.BOARD_WIDTH
     board_height: float = config.BOARD_HEIGHT
+        
+    def go_to_start(self) -> None:
+        """Move both arms to their configured start positions."""
+        self.left.go_home()
+        self.right.go_home()
 
     def arm(self, side: str) -> Arm:
         """Return the arm for a given side.
@@ -86,7 +91,7 @@ class Workspace:
     # ------------------------------------------------------------------ #
     @classmethod
     def simulated(cls, paper: Paper | None = None, magnets: MagnetRegistry | None = None,
-                  arm_config: ArmConfig | None = None) -> "Workspace":
+                  arm_configs: list[ArmConfig] | None = None) -> "Workspace":
         """Build a fully simulated workspace (no hardware required).
 
         Parameters
@@ -95,21 +100,23 @@ class Workspace:
             Initial paper; defaults to a sheet at the board's bottom-left corner.
         magnets : origami.magnets.MagnetRegistry or None, optional
             Magnet registry; defaults to empty.
-        arm_config : origami.arm.ArmConfig or None, optional
+        arm_configs : list[origami.arm.ArmConfig] or None, optional
             Shared motion defaults for both arms.
 
         Returns
         -------
         Workspace
         """
-        left = Arm.simulated("left", config.left_calibration(), arm_config)
-        right = Arm.simulated("right", config.right_calibration(), arm_config)
+        left = Arm.simulated("left", config.left_calibration(), arm_configs[0] if arm_configs else None)
+        right = Arm.simulated("right", config.right_calibration(), arm_configs[1] if arm_configs else None)
         paper = paper or Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT, origin=(0.0, 0.0))
-        return cls(left, right, paper, magnets or MagnetRegistry())
+        ws = cls(left, right, paper, magnets or MagnetRegistry())
+        ws.go_to_start()
+        return ws
 
     @classmethod
     def hardware(cls, paper: Paper | None = None, magnets: MagnetRegistry | None = None,
-                 arm_config: ArmConfig | None = None) -> "Workspace":  # pragma: no cover - needs robots
+                 arm_configs: list[ArmConfig] | None = None) -> "Workspace":  # pragma: no cover - needs robots
         """Build a live workspace driving the real arms and gripper.
 
         Parameters
@@ -125,11 +132,13 @@ class Workspace:
         -------
         Workspace
         """
-        left = Arm.real("left", config.LEFT_ARM_IP, config.left_calibration(), config=arm_config, gripper_ip=config.LEFT_ARM_IP, gripper_port=config.GRIPPER_PORT)
+        left = Arm.real("left", config.LEFT_ARM_IP, config.left_calibration(), config=arm_configs[0] if arm_configs else None, gripper_ip=config.LEFT_ARM_IP, gripper_port=config.GRIPPER_PORT)
         right = Arm.real("right", config.RIGHT_ARM_IP, config.right_calibration(),
                          gripper_ip=config.RIGHT_ARM_IP, gripper_port=config.GRIPPER_PORT,
-                         config=arm_config)
+                         config=arm_configs[1] if arm_configs else None)
         paper = paper or Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT, origin=(0.0, 0.0))
-        return cls(left, right, paper, magnets or MagnetRegistry())
+        ws = cls(left, right, paper, magnets or MagnetRegistry())
+        ws.go_to_start()
+        return ws
 
 

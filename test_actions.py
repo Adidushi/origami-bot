@@ -95,22 +95,22 @@ def test_arm_basics(ws: Workspace) -> None:
 
 
 def test_motion_types(ws: Workspace) -> None:
-    step("2 · move_to_world — linear vs joint motion")
+    step("2 · move_to_world — linear motion")
 
     arm = ws.right
     target = (0.20, 0.15, arm.config.clearance_z)
 
-    arm.move_to_world(*target, motion="linear")
+    arm.move_to_world(*target)
     px, py, pz = arm.get_tool_pos()
-    info("linear move result", f"({px:.4f}, {py:.4f}, {pz:.4f})")
+    info("move result", f"({px:.4f}, {py:.4f}, {pz:.4f})")
     check(abs(px - target[0]) < 0.005 and abs(py - target[1]) < 0.005,
-          "reached target via linear motion")
+          "reached target")
 
-    arm.move_to_world(0.10, 0.10, arm.config.clearance_z, motion="joint")
+    arm.move_to_world(0.10, 0.10, arm.config.clearance_z)
     px, py, pz = arm.get_tool_pos()
-    info("joint move result", f"({px:.4f}, {py:.4f}, {pz:.4f})")
+    info("second move result", f"({px:.4f}, {py:.4f}, {pz:.4f})")
     check(abs(px - 0.10) < 0.005 and abs(py - 0.10) < 0.005,
-          "reached target via joint motion")
+          "reached second target")
 
 
 def test_move_offset_world(ws: Workspace) -> None:
@@ -382,7 +382,7 @@ def main() -> None:
     # test_arm_basics(ws)
     # test_motion_types(ws)
     # test_move_offset_world(ws)
-    # test_magnet_place_move_remove(ws)
+    test_magnet_place_move_remove(ws)
     # test_grip_corner_constraint(ws)
     # test_grip_edge(ws)
     # test_move_paper(ws)

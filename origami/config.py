@@ -7,6 +7,8 @@ tool changes, then update these dictionaries.
 """
 from __future__ import annotations
 
+import math
+
 from .coords import ArmCalibration
 
 # --------------------------------------------------------------------------- #
@@ -57,6 +59,16 @@ RIGHT_ARM_CORNERS = {
     "bottom_right": [0.12452041218730804, -0.3696886048388927, 0.092693874742788494,
                      -3.390196218503921e-05, 3.1399894497564644, -4.516041120261115e-05],
 }
+
+
+# --------------------------------------------------------------------------- #
+# Start joint positions (radians), applied at the beginning of every program run.
+# --------------------------------------------------------------------------- #
+#: Right arm start position: [0°, -90°, -90°, -90°, 90°, 0°]
+RIGHT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, -90, -90, 90, 0]]
+#: Left arm start position:
+#LEFT_ARM_START_JOINTS: list[float] | None = None  # e.g. [math.radians(a) for a in [0, -90, -90, -90, 90, 0]]
+LEFT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, 90, -90, -90, 0]]
 
 
 def left_calibration() -> ArmCalibration:
