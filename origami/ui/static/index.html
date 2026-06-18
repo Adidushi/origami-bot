@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>origami &mdash; fold simulator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <h1>origami <span class="sub">fold simulator</span></h1>
+    <p class="tagline">Drive the simulated paper model in board coordinates &mdash; no robots required.</p>
+  </header>
+
+  <main>
+    <section class="stage">
+      <div class="canvas-wrap">
+        <canvas id="board" width="740" height="540"></canvas>
+      </div>
+      <p id="hint" class="hint">Click two points on the board to set a fold line, then click the side you want to fold over.</p>
+      <p id="error" class="error" hidden></p>
+    </section>
+
+    <aside class="panel">
+      <div class="card">
+        <h2>New sheet</h2>
+        <label>Shape
+          <select id="shape">
+            <option value="rectangle">Rectangle</option>
+            <option value="square">Square</option>
+          </select>
+        </label>
+        <div class="row">
+          <label>Width (cm)<input id="newWidth" type="number" step="0.1" min="0.1" value="21" /></label>
+          <label id="heightField">Height (cm)<input id="newHeight" type="number" step="0.1" min="0.1" value="29.7" /></label>
+        </div>
+        <button id="newBtn" class="primary">Create sheet</button>
+      </div>
+
+      <div class="card">
+        <h2>Fold</h2>
+        <div class="row">
+          <label>Style
+            <select id="foldStyle">
+              <option value="valley">Valley</option>
+              <option value="mountain">Mountain</option>
+            </select>
+          </label>
+          <label>Label<input id="foldLabel" type="text" placeholder="e.g. left nose" /></label>
+        </div>
+        <button id="cancelFold" class="ghost" hidden>Cancel pending fold</button>
+        <p class="muted small">Tip: use the <strong>Fold dart</strong> button for a worked example.</p>
+      </div>
+
+      <div class="card">
+        <h2>Transform</h2>
+        <div class="row">
+          <label>Rotate (deg)<input id="rotateDeg" type="number" step="5" value="90" /></label>
+          <button id="rotateBtn">Rotate</button>
+        </div>
+        <div class="row">
+          <label>dx (cm)<input id="transDx" type="number" step="0.5" value="2" /></label>
+          <label>dy (cm)<input id="transDy" type="number" step="0.5" value="0" /></label>
+          <button id="translateBtn">Slide</button>
+        </div>
+      </div>
+
+      <div class="card actions">
+        <button id="dartBtn" class="primary">Fold dart</button>
+        <button id="undoBtn">Undo</button>
+        <button id="redoBtn">Redo</button>
+        <button id="resetBtn" class="danger">Reset</button>
+      </div>
+
+      <div class="card">
+        <h2>Landmarks</h2>
+        <ul id="landmarks" class="landmarks"></ul>
+      </div>
+
+      <div class="card">
+        <h2>History</h2>
+        <ol id="history" class="history"></ol>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
