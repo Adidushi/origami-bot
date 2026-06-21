@@ -119,10 +119,12 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     if magnet.tray_position is not None:
         pick = np.asarray(magnet.handle_xy, dtype=float)
         _grip_magnet_at(arm, float(pick[0]), float(pick[1]),
-                        float(pick[2]) + magnet.grip_height, magnet.orientation)
-
-    _release_magnet_at(arm, x, y, magnet.grip_height, orientation)
+                        float(magnet.tray_position[2]) + magnet.grip_height, magnet.orientation)
+    
+    # update x and y so handle_xy is calculated correctly for the new position of the magnet
     magnet.place_at(x, y, orientation)
+    handle_x, handle_y = magnet.handle_xy
+    _release_magnet_at(arm, handle_x, handle_y, magnet.grip_height, orientation)
     if magnet.identifier not in workspace.magnets:
         workspace.magnets.add(magnet)
 
@@ -169,16 +171,17 @@ def remove_magnet(workspace: Workspace, identifier: str,
 
     _grip_magnet_at(arm, float(handle[0]), float(handle[1]),
                     magnet.grip_height, magnet.orientation)
+    
+    magnet.stow() # Update the magnet's state to reflect that it's stowed away back in the tray
 
     if magnet.tray_position is not None:
-        home = np.asarray(magnet.tray_position, dtype=float)
+        home = magnet.handle_xy
         _release_magnet_at(arm, float(home[0]), float(home[1]),
-                           float(home[2]) + magnet.grip_height, magnet.orientation)
+                           float(magnet.tray_position[2]) + magnet.grip_height, magnet.orientation)
     else:
         arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True) # open the gripper and block until it is fully open before moving the arm up
         arm.lift()
 
-    magnet.stow() # Update the magnet's state to reflect that it's stowed away back in the tray
 
 
 # ===========================================================================

@@ -89,7 +89,7 @@ def main() -> None:
 
     lbracket_a = LBracketMagnet(
         identifier="lbracket_a",
-        handle_height=0.015,
+        handle_height=0.003,
         handle_offset=0.2, 
         orientation = 0,
         tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+3/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
@@ -129,7 +129,7 @@ def main() -> None:
 
     # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
-    # actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2, carrying_arm="left")
+    actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+3.5/100, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2, carrying_arm="left")
 
     actions.crease(
         workspace=ws,

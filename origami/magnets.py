@@ -77,7 +77,7 @@ class Magnet:
         Subclasses with a spatially separated handle (e.g. `LBracketMagnet`)
         override this to return the actual handle location.
         """
-        return self.tray_position.copy()
+        return self.center
 
     @property
     def grip_height(self) -> float:
