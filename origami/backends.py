@@ -65,7 +65,7 @@ class GripperBackend(Protocol):
         """Close the gripper."""
         ...
 
-    def release(self) -> None:
+    def release(self, blocking=True) -> None:
         """Open the gripper."""
         ...
 
@@ -73,7 +73,7 @@ class GripperBackend(Protocol):
         """Return the current gripper position (0 = open, 255 = closed)."""
         ...
 
-    def goto(self, percentage: float) -> None:
+    def goto(self, percentage: float, blocking=True) -> None:
         """Move the gripper to a given opening percentage (0 = open, 1 = closed)."""
         ...
 
@@ -142,15 +142,18 @@ class RobotiqGripperBackend:
         self._gripper.connect(ip, port)
         self._gripper.activate()
 
-    def grip(self) -> None:
-        self._gripper.close()
+    def grip(self, blocking=True) -> None:
+        self._gripper.close(blocking)
 
-    def release(self) -> None:
-        self._gripper.open()
+    def release(self, blocking=True) -> None:
+        self._gripper.open(blocking)
 
-    def goto(self, percentage: float) -> None:
+    def goto(self, percentage: float, blocking=True) -> None:
         """Move the gripper to a given opening percentage (0 = open, 1 = closed)."""
-        self._gripper.move(int(percentage * 255))
+        if blocking:
+            self._gripper.move_and_wait(int(percentage * 255))
+        else:
+            self._gripper.move(int(percentage * 255))
 
     def opening(self) -> int:
         return int(self._gripper.position())

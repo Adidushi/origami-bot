@@ -236,10 +236,10 @@ class Arm:
         if self.gripper is not None:
             self.gripper.release()
 
-    def goto(self, percentage: float) -> None:
+    def goto(self, percentage: float, blocking = True) -> None:
         """Set the gripper to a given opening percentage (0 = open, 1 = closed)."""
         if self.gripper is not None:
-            self.gripper.goto(percentage)
+            self.gripper.goto(percentage, blocking)
 
     # ------------------------------------------------------------------ #
     # Joint control

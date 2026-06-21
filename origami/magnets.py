@@ -65,7 +65,8 @@ class Magnet:
     kind: str = "generic"
 
     def __post_init__(self) -> None:
-        self.center = np.asarray(self.center, dtype=float).reshape(2)
+        self.tray_position = np.asarray(self.tray_position, dtype=float).reshape(3)
+        self.center = np.asarray(self.tray_position[:2], dtype=float)
 
     # -- geometry the arms need ----------------------------------------- #
     @property
@@ -76,7 +77,7 @@ class Magnet:
         Subclasses with a spatially separated handle (e.g. `LBracketMagnet`)
         override this to return the actual handle location.
         """
-        return self.center.copy()
+        return self.tray_position.copy()
 
     @property
     def grip_height(self) -> float:
@@ -151,17 +152,17 @@ class BlockMagnet(Magnet):
 
     Parameters
     ----------
-    holder_height : float, optional
+    handle_height : float, optional
         World z of the grip point above the board surface (metres).
         Default ``0.02``.
     """
 
-    holder_height: float = 0.02
+    handle_height: float = 0.02
     kind: str = "block"
 
     @property
     def grip_height(self) -> float:
-        return self.holder_height
+        return self.handle_height
 
 
 @dataclass
@@ -194,21 +195,11 @@ class LBracketMagnet(Magnet):
         The handle is offset from the foot in the direction of `orientation`.
         """
         direction = np.array([np.cos(self.orientation), np.sin(self.orientation)])
-        return self.center + direction * self.handle_offset
+        return self.center - direction * self.handle_offset
 
     @property
     def grip_height(self) -> float:
         return self.handle_height
-
-    def hinge_line(self) -> FoldLine:
-        """The board line the bracket pins / hinges the paper about.
-
-        Returns
-        -------
-        origami.geometry.FoldLine
-            A line through the magnetic foot along `orientation`.
-        """
-        return FoldLine.at_angle(self.center, self.orientation)
 
 
 class MagnetRegistry:

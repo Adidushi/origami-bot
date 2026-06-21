@@ -116,7 +116,7 @@ class Workspace:
 
     @classmethod
     def hardware(cls, paper: Paper | None = None, magnets: MagnetRegistry | None = None,
-                 arm_configs: list[ArmConfig] | None = None) -> "Workspace":  # pragma: no cover - needs robots
+                 arm_configs: list[ArmConfig] | None = None, home: bool = True) -> "Workspace":  # pragma: no cover - needs robots
         """Build a live workspace driving the real arms and gripper.
 
         Parameters
@@ -138,7 +138,8 @@ class Workspace:
                          config=arm_configs[1] if arm_configs else None)
         paper = paper or Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT, origin=(0.0, 0.0))
         ws = cls(left, right, paper, magnets or MagnetRegistry())
-        ws.go_to_start()
+        if home:
+            ws.go_to_start()
         return ws
 
 

@@ -135,12 +135,12 @@ def test_magnet_place_move_remove(ws: Workspace) -> None:
 
     block = BlockMagnet(
         identifier="block_a",
-        holder_height=0.015,
+        handle_height=0.015,
         tray_position=(-0.15, 0.05, -0.02),
     )
     lbracket = BlockMagnet(
         identifier="lbracket_a",
-        holder_height=0.015,
+        handle_height=0.015,
         tray_position=(-0.15, 0.15, -0.02),
     )
 

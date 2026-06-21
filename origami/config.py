@@ -60,7 +60,14 @@ RIGHT_ARM_CORNERS = {
                      -3.390196218503921e-05, 3.1399894497564644, -4.516041120261115e-05],
 }
 
+LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER = {
+    "bottom_right": [-0.10, 0.05, -0.038],
+    "bottom_left": [-0.234, 0.05, -0.038]
+}
 
+LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER = [-0.10, 0.05, -0.038]
+CREASER_POS = [LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-16.5/100, LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+16.5/100, LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]+5/100]
+CREASER_GRIP_OPEN_POS = 0.65
 # --------------------------------------------------------------------------- #
 # Start joint positions (radians), applied at the beginning of every program run.
 # --------------------------------------------------------------------------- #
@@ -69,6 +76,7 @@ RIGHT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, -90, -9
 #: Left arm start position:
 #LEFT_ARM_START_JOINTS: list[float] | None = None  # e.g. [math.radians(a) for a in [0, -90, -90, -90, 90, 0]]
 LEFT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, 90, -90, -90, 0]]
+
 
 
 def left_calibration() -> ArmCalibration:

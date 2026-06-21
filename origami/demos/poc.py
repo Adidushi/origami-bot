@@ -25,7 +25,7 @@ import sys
 # Allow running directly: python3 origami/demos/demo_get.py
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from origami.arm import ArmConfig
-from origami.magnets import BlockMagnet
+from origami.magnets import BlockMagnet, LBracketMagnet
 from origami import Paper, Workspace, actions, config
 
 
@@ -49,8 +49,10 @@ def main() -> None:
     # Initialization
     # ---------------------------------------------------------------------------
     arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS)]
-    ws = Workspace.hardware(arm_configs=arm_configs) if args.hardware else Workspace.simulated(arm_config=arm_configs)
-    ws.go_to_start()
+    ws = Workspace.hardware(arm_configs=arm_configs, home=True) if args.hardware else Workspace.simulated(arm_configs=arm_configs)
+
+    ws.left.grip()
+    ws.right.grip()
     
     # Centre an A4 sheet on the board.  A4 is 297 mm tall on a 270 mm board,
     # giving a natural 13.5 mm overhang on both the top and bottom edges.
@@ -60,7 +62,7 @@ def main() -> None:
                                origin=(origin_x, origin_y))
     
     # Grip the bottom-right corner of the paper from the −y side (below board)
-    grip_x = origin_x   # LEFT! edge of paper
+    grip_x = origin_x+1/100   # LEFT! edge of paper
     grip_y = origin_y                         # bottom edge, overhangs board
 
     print()
@@ -75,14 +77,22 @@ def main() -> None:
     print("[Step 1] Place initial magnets")
     block_a = BlockMagnet(
         identifier="block_a",
-        holder_height=0.015,
-        tray_position=(-0.15, 0.05, -0.02),
+        handle_height=0.015,
+        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1.7/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+11.2/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
     )
 
     block_b = BlockMagnet(
         identifier="block_b",
-        holder_height=0.015,
-        tray_position=(-0.15, 0.115, -0.02),
+        handle_height=0.015,
+        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1.7/100-5/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+11.2/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
+    )
+
+    lbracket_a = LBracketMagnet(
+        identifier="lbracket_a",
+        handle_height=0.015,
+        handle_offset=0.2, 
+        orientation = 0,
+        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+3/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
     )
 
     actions.place_magnet(ws, block_a, x=0.255, y=0.135, carrying_arm="left")
@@ -114,17 +124,23 @@ def main() -> None:
         arm_side="right",
         radius=9.5/100,
         axis="x",
-        n_steps=4,
+        n_steps=8,
     )
+
+    # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
+    # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
+    # actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2, carrying_arm="left")
 
     actions.crease(
         workspace=ws,
         arm_side="left",
-        start_x=origin_x + config.PAPER_WIDTH / 2,
+        start_x=origin_x + config.PAPER_WIDTH / 2 + 3/100,  # start just beyond the left edge of the paper
         start_y=origin_y,
         crease_length=config.PAPER_HEIGHT,
         axis="y"
     )
+
+    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
 
     actions.unfold_arc(
         ws,

@@ -33,6 +33,7 @@ from typing import Tuple
 
 import numpy as np
 
+from origami import config
 from origami.arm import Arm
 
 from .magnets import Magnet
@@ -74,12 +75,10 @@ def _grip_magnet_at(arm, x: float, y: float, z: float,
     """Approach a magnet from above, descend to its grip height, close, retreat."""
     clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance, tool_rotation)
-    arm.goto(MAGNET_GRIP_OPEN_POS)  # ensure gripper is open before descending
-    time.sleep(1)  # give the gripper a moment to open before moving down
+    arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)  # ensure gripper is open before descending and block until it is fully open before moving the arm down
     arm.move_to_world(x, y, z, tool_rotation)
-    arm.goto(MAGNET_GRIP_CLOSE_POS)
+    arm.goto(MAGNET_GRIP_CLOSE_POS, blocking=True) # close the gripper and block until it is fully closed before moving the arm up
     # input("Time to measure magnet") # Remove this later - just for testing
-    time.sleep(1)  # give the gripper a moment to close before lifting
     arm.move_to_world(x, y, clearance, tool_rotation)
 
 
@@ -89,9 +88,8 @@ def _release_magnet_at(arm, x: float, y: float, z: float,
     clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance, tool_rotation)
     arm.move_to_world(x, y, z, tool_rotation)
-    arm.goto(MAGNET_GRIP_OPEN_POS)
+    arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)  # open the gripper and block until it is fully open before moving the arm up
     # input("Time to measure magnet") # Remove this later - just for testing
-    time.sleep(1)  # give the gripper a moment to open before moving
     arm.move_to_world(x, y, clearance, tool_rotation)
 
 
@@ -119,7 +117,7 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     arm = workspace.arm(carrying_arm)
 
     if magnet.tray_position is not None:
-        pick = np.asarray(magnet.tray_position, dtype=float)
+        pick = np.asarray(magnet.handle_xy, dtype=float)
         _grip_magnet_at(arm, float(pick[0]), float(pick[1]),
                         float(pick[2]) + magnet.grip_height, magnet.orientation)
 
@@ -177,8 +175,7 @@ def remove_magnet(workspace: Workspace, identifier: str,
         _release_magnet_at(arm, float(home[0]), float(home[1]),
                            float(home[2]) + magnet.grip_height, magnet.orientation)
     else:
-        arm.goto(MAGNET_GRIP_OPEN_POS)
-        time.sleep(1)  # give the gripper a moment to open before lifting
+        arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True) # open the gripper and block until it is fully open before moving the arm up
         arm.lift()
 
     magnet.stow() # Update the magnet's state to reflect that it's stowed away back in the tray
@@ -278,17 +275,31 @@ def fold_arc(
     axis: str,
     n_steps: int = 8,
 ) -> None:
-    """Fold paper by sweeping the gripped edge through a circular arc about a fold line.
+    """Fold paper by sweeping the gripped edge through a semicircular arc about a fold line.
 
-    The fold axis is a line parallel to the y-axis at x = ``fold_axis_x`` on
-    the board surface (z = 0).  Call this immediately after ``grip_paper``; the
-    arm's current position is taken as the arc start point.
+    In origami, a fold is defined by a *fold line* — the straight crease on the
+    paper's surface that stays fixed while one half of the sheet rotates up and
+    over it (i.e. the fold line is created at the *midpoint of the fold* itself, in
+    the perpendicular direction to the fold axis).  This function controls two things:
 
-    Each waypoint is placed exactly on the circle of radius
-    ``r = |start_x - fold_axis_x|`` centred at (fold_axis_x, y, 0), so the
-    gripper traces a true semicircle in the x-z plane.  y stays constant.
-    Wrist (joint 5) rotates by the same angular step at each waypoint so the
-    gripper stays perpendicular to the paper throughout the fold.
+    * `axis` — the direction the gripper *travels* during the fold (i.e. the
+      direction perpendicular to the fold line). 
+
+      - `axis='x'`: gripper travels in x → fold line (crease) runs parallel to the y-axis.
+      - `axis='y'`: gripper travels in y → fold line (crease) runs parallel to the x-axis.
+
+    * `radius` — how far the fold line is from the grip point, and in which
+      direction.  The fold line lies on the board surface (z = 0) at coordinate
+      `current_pos[axis] + radius` along the named axis.
+
+    Call this immediately after `grip_paper`; the arm's current position is
+    taken as the arc start point.  The gripper sweeps through a true semicircle
+    of radius `|radius|` in the plane of `axis` and z, ending on the
+    opposite side of the fold line.  The remaining coordinate (parallel to the
+    fold line) is held constant throughout.
+
+    Wrist (joint 5) rotates by π / n_steps at each step so the gripper stays
+    parallel to the paper throughout the fold.
 
     Sequence per step: rotate wrist → moveL to next arc position.
 
@@ -296,11 +307,19 @@ def fold_arc(
     ----------
     workspace : Workspace
     arm_side : {'left', 'right'}
-        Arm carrying the paper edge.
-    fold_axis_x : float
-        World x coordinate of the fold crease (metres).
+    radius : float
+         Signed distance from the gripped edge to the fold line = fold midpoint along ``axis``
+        (metres).  The sign controls fold direction: positive folds toward
+        +axis, negative folds toward −axis.  The magnitude is the arc radius.
+    axis : {'x', 'y'}
+        Direction in which we fold / direction the gripper travels during the fold.
+        The fold line (crease) runs perpendicular to this in the board plane:
+        'x' → folds along 'x' axis, created fold line is parallel to 'y'-axis; 
+        'y' → folds along 'y' axis, created fold line is parallel to 'x'-axis.
     n_steps : int
-        Number of equally-spaced waypoints along the π-radian arc.  Default 8.
+        Number of waypoints along the arc, including the end point.  More
+        waypoints produce a smoother fold at the cost of longer execution
+        time.  Default 8.
     """
 
     # select arm
@@ -332,11 +351,11 @@ def fold_arc(
         angle = (math.pi - base_angle) if right_flag else base_angle
 
         current_pos = midpoint.copy()
-        current_pos[2] += radius * math.sin(angle)
+        current_pos[2] += abs(radius) * math.sin(angle)
         if (axis == 'x'):
-            current_pos[0] += radius * math.cos(angle)
+            current_pos[0] += abs(radius) * math.cos(angle)
         else:
-            current_pos[1] += radius * math.cos(angle)
+            current_pos[1] += abs(radius) * math.cos(angle)
 
         #arm.move_to_world(*current_pos, 0, sideways=True)
         offset = [a-b for a,b in zip(current_pos,previous_pos)]
@@ -404,7 +423,7 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
     # Step 5: descend to paper height outside the board (nothing to hit here).
     a.move_to_world(x_start, y_start, z_start, grip_angle, sideways=True)
     # Step 5.5?: open da gripper
-    a.goto(.5)
+    a.goto(config.CREASER_GRIP_OPEN_POS)
     # Slide horizontally in to the paper edge.
     a.move_to_world(x, y, z, grip_angle, sideways=True)
     a.grip()
@@ -453,7 +472,7 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
     # Step 5.5?: open da gripper
     # Slide horizontally in to the paper edge.
     a.move_to_world(x, y, z, grip_angle, sideways=True)
-    a.goto(.5)
+    a.goto(config.CREASER_GRIP_OPEN_POS, blocking=True)
     a.move_offset_world(-0.1, 0, 0) # move up and back a bit to lift up the creaser tool
     a.grip()
     a.go_home()
@@ -495,11 +514,12 @@ def crease(
     arm.go_home()
     arm.grip()
     # pick up the creaser tool (hardcoded position for now)
-    crease_x, crease_y, crease_z = -0.21, 0.21, 0.03
+    
+    crease_x, crease_y, crease_z = config.CREASER_POS
     grip_crease_tool(workspace, crease_x, crease_y, crease_z, grip_angle=0, arm=arm_side)
 
 
-    clearance_offset = 0.1
+    clearance_offset = 0.103
     crease_height = 6.5/100# * math.sin(math.pi/4) # safe height to
 
 
@@ -508,25 +528,28 @@ def crease(
     #     arm.rotate_joint(4, math.pi/4)
     # else:
     #     arm.rotate_joint(4, -math.pi/4)
-
+    middle_magnet_width = 7.5/100
     
     arm.move_to_world(start_x, start_y, crease_height+clearance_offset)
     if axis == 'y':
         arm.rotate_joint(5, math.pi/2)
-    arm.move_offset_world(0,0,-clearance_offset)
     # move along the crease line for a given length
     if axis == 'x':
-        arm.move_offset_world(crease_length/2, 0, 0)
-        arm.move_offset_world(0,0,clearance_offset)
-        arm.move_offset_world(-crease_length/2, 0, 0)
+        arm.move_offset_world(middle_magnet_width/2, 0, 0) # move past the of the magnet to avoid collisions
         arm.move_offset_world(0,0,-clearance_offset)
-        arm.move_offset_world(-crease_length/2, 0, 0)
+        arm.move_offset_world((crease_length-middle_magnet_width)/2, 0, 0)
+        arm.move_offset_world(0,0,clearance_offset)
+        arm.move_offset_world(-(crease_length/2+middle_magnet_width), 0, 0)
+        arm.move_offset_world(0,0,-clearance_offset)
+        arm.move_offset_world(-(crease_length-middle_magnet_width)/2, 0, 0)
     else:
-        arm.move_offset_world(0, crease_length/2, 0)
-        arm.move_offset_world(0,0,clearance_offset)
-        arm.move_offset_world(0, -crease_length/2, 0)
+        arm.move_offset_world(0, middle_magnet_width/2, 0) # move past the of the magnet to avoid collisions
         arm.move_offset_world(0,0,-clearance_offset)
-        arm.move_offset_world(0, -crease_length/2, 0)
+        arm.move_offset_world(0, (crease_length-middle_magnet_width)/2, 0)
+        arm.move_offset_world(0,0,clearance_offset)
+        arm.move_offset_world(0, -(crease_length/2+middle_magnet_width), 0)
+        arm.move_offset_world(0,0,-clearance_offset)
+        arm.move_offset_world(0, -(crease_length-middle_magnet_width)/2, 0)
 
     return_creaser_tool(workspace, crease_x, crease_y, crease_z, grip_angle=0, arm=arm_side)
 
