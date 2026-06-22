@@ -252,7 +252,7 @@ class Arm:
         acc = acceleration or self.config.joint_acceleration
         return self.backend.move_joints(angles, spd, acc)
 
-    def rotate_joint(self, joint: int, delta: float) -> bool:
+    def rotate_joint(self, joint: int, delta: float, joint_speed: float | None = None) -> bool:
         """Rotate one joint by ``delta`` radians from its current angle.
 
         Parameters
@@ -261,12 +261,19 @@ class Arm:
             Joint index 0–5 (0 = base, 5 = wrist).
         delta : float
             Angle change in radians (positive = counter-clockwise).
+        joint_speed : float or None, optional
+            Speed for the joint movement.  ``None`` uses the default speed.
         """
         angles = list(self.backend.current_joint_angles())
         angles[joint] += delta
+        spd = joint_speed or self.config.joint_speed
         return self.backend.move_joints(
-            angles, self.config.joint_speed, self.config.joint_acceleration
+            angles, spd, self.config.joint_acceleration
         )
+
+    def get_joint_angles(self) -> list[float]:
+        """Return the current joint angles ``[j0..j5]`` in radians."""
+        return self.backend.current_joint_angles()
 
     # ------------------------------------------------------------------ #
     # Coordinate conversion (no motion)

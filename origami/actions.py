@@ -259,12 +259,25 @@ def flip_paper(workspace: Workspace,
         Which arm performs the grip.  Default ``'right'``.
     """
 
-    clearance = 0.2
-
     a = workspace.arm(arm)
+    # move arm out of the way for flipping
     a.move_offset_world(0, 0, config.FLIP_PAPER_CLEARANCE)
-    a.rotate_joint(5, (1+config.FLIP_PAPER_OVERROTATION)*math.pi)
-    a.rotate_joint(5, -config.FLIP_PAPER_OVERROTATION*math.pi)
+
+    # set arm angles so paper faces straight down
+    joints = a.get_joint_angles()
+    joints[3] += math.pi/2
+    joints[4] += math.pi/4
+    # and flip the page
+    joints[5] += math.pi
+    a.move_to_joints(joints)
+
+    # undo the face-down orientation
+    joints = a.get_joint_angles()
+    joints[3] -= math.pi/2
+    joints[4] -= math.pi/4
+    a.move_to_joints(joints)
+
+    # put the paper back
     a.move_offset_world(0, 0, -config.FLIP_PAPER_CLEARANCE)
 
 
@@ -431,7 +444,8 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
     # Slide horizontally in to the paper edge.
     a.move_to_world(x, y, z, grip_angle, sideways=True)
     a.grip()
-    a.move_offset_world(-0.05, 0, 0.05) # move up and back a bit to lift up the creaser tool
+    a.move_offset_world(-0.07, 0, 0) # move up and back a bit to lift up the creaser tool
+    a.move_offset_world(0, 0, 0.05) # move up and back a bit to lift up the creaser tool
     a.go_home()
 
 def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip_angle: float,

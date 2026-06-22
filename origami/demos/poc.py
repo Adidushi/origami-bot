@@ -63,12 +63,12 @@ def main() -> None:
     
     # Grip the bottom-right corner of the paper from the −y side (below board)
     grip_x = origin_x+1/100   # LEFT! edge of paper
-    grip_y = origin_y                         # bottom edge, overhangs board
+    grip_y = origin_y+0.7/100                         # bottom edge, overhangs board
 
     print()
     print(f"paper bottom-left corner   ({grip_x:.4f}, {grip_y:.4f})")
     print(f"paper bottom-right corner  ({grip_x:.4f}, {grip_y:.4f})")
-    print(f"overhang below board       {-grip_y * 1000:.1f} mm")
+    # print(f"overhang below board       {-grip_y * 1000:.1f} mm")
 
 
     # ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ def main() -> None:
         handle_height=0.003,
         handle_offset=0.2, 
         orientation = 0,
-        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+3/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
+        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1.15/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+3.05/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
     )
 
     actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
@@ -156,6 +156,7 @@ def main() -> None:
     ws.arm(side='left').go_home()
 
     grip_x = config.BOARD_WIDTH/2
+
     actions.grip_paper(
         workspace=ws, 
         x=grip_x, 
