@@ -95,8 +95,8 @@ def main() -> None:
         tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+3/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
     )
 
-    actions.place_magnet(ws, block_a, x=0.255, y=0.135, carrying_arm="left")
-    actions.place_magnet(ws, block_b, x=0.255, y=0.225, carrying_arm="left")
+    actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
+    actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
     ws.left.go_home()
 
     # ---------------------------------------------------------------------------
