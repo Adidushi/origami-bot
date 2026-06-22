@@ -262,9 +262,10 @@ def flip_paper(workspace: Workspace,
     clearance = 0.2
 
     a = workspace.arm(arm)
-    a.move_offset_world(0, 0, clearance)
-    a.rotate_joint(5, math.pi)
-    a.move_offset_world(0, 0, -clearance)
+    a.move_offset_world(0, 0, config.FLIP_PAPER_CLEARANCE)
+    a.rotate_joint(5, (1+config.FLIP_PAPER_OVERROTATION)*math.pi)
+    a.rotate_joint(5, -config.FLIP_PAPER_OVERROTATION*math.pi)
+    a.move_offset_world(0, 0, -config.FLIP_PAPER_CLEARANCE)
 
 
 # ===========================================================================

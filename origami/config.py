@@ -68,6 +68,11 @@ LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER = {
 LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER = [-0.10, 0.05, -0.038]
 CREASER_POS = [LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-16.5/100, LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+16.5/100, LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]+5/100]
 CREASER_GRIP_OPEN_POS = 0.65
+
+FLIP_PAPER_CLEARANCE = 0.2
+FLIP_PAPER_OVERROTATION = 0.2
+
+
 # --------------------------------------------------------------------------- #
 # Start joint positions (radians), applied at the beginning of every program run.
 # --------------------------------------------------------------------------- #
