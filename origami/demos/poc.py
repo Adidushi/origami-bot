@@ -35,11 +35,17 @@ from origami import Paper, Workspace, actions, config
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="demo_get — paper edge grip and fold")
-    parser.add_argument("--hardware", action="store_true",
-                        help="drive real arms (default: simulate)")
+    parser.add_argument("--hardware", action="store_false",
+                        help="drive real arms (default: hardware)")
+    parser.add_argument("--calibrate", action="store_true",
+                        help="calibrate the boards (default: False)")
     args = parser.parse_args()
 
     mode = "HARDWARE" if args.hardware else "SIMULATION"
+    if args.calibrate:
+        calibrate_boards()
+        return
+
     print("=" * 60)
     print("  demo_get — grip paper edge and fold")
     print(f"  mode: {mode}")
@@ -70,7 +76,6 @@ def main() -> None:
     print(f"paper bottom-right corner  ({grip_x:.4f}, {grip_y:.4f})")
     # print(f"overhang below board       {-grip_y * 1000:.1f} mm")
 
-
     # ---------------------------------------------------------------------------
     # Step 1 — place initial magnet
     # ---------------------------------------------------------------------------
@@ -78,13 +83,13 @@ def main() -> None:
     block_a = BlockMagnet(
         identifier="block_a",
         handle_height=0.015,
-        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1.7/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+11.2/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
+        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.7/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.2/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
     block_b = BlockMagnet(
         identifier="block_b",
         handle_height=0.015,
-        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1.7/100-5/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+11.2/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
+        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.7/100-5/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.2/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
     lbracket_a = LBracketMagnet(
@@ -92,7 +97,7 @@ def main() -> None:
         handle_height=0.003,
         handle_offset=0.2, 
         orientation = 0,
-        tray_position=(config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[0]-1.15/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[1]+3.05/100, config.LEFT_ARM_MAGNET_PLATFORM_BOTTOM_RIGHT_CORNER[2]),
+        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.15/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.05/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
     actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
@@ -176,6 +181,33 @@ def main() -> None:
     print("  Demo complete.")
     print(f"{'=' * 60}\n")
 
+
+def calibrate_boards():
+    arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS)]
+    ws = Workspace.hardware(arm_configs=arm_configs, home=True)
+
+    ws.left.grip()
+    ws.right.grip()
+    
+    # Centre an A4 sheet on the board.  A4 is 297 mm tall on a 270 mm board,
+    # giving a natural 13.5 mm overhang on both the top and bottom edges.
+    origin_x = config.BOARD_WIDTH  / 2 - config.PAPER_WIDTH  / 2
+    origin_y = config.BOARD_HEIGHT / 2 - config.PAPER_HEIGHT / 2   # < 0
+    ws.paper = Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT,
+                               origin=(origin_x, origin_y))
+    
+    input("ready to calibrate")
+
+    ws.left.move_to_world(*ws.left.tcp_to_world(config.LEFT_ARM_CORNERS["top_left"]))
+    ws.right.move_to_world(*ws.right.tcp_to_world(config.RIGHT_ARM_CORNERS["bottom_right"]))
+
+    input("calibrate board")
+
+    while input("next?") != "exit":
+        ws.left.move_to_world(*config.MAGNET_PLATFORM_POSITIONS["bottom_right"])
+        if input("next?") == "exit":
+            break
+        ws.left.move_to_world(*config.MAGNET_PLATFORM_POSITIONS["bottom_left"])
 
 if __name__ == "__main__":
     main()
