@@ -56,6 +56,9 @@ class ArmBackend(Protocol):
         """
         ...
 
+    def get_operation_progress(self):
+        ...
+
 
 @runtime_checkable
 class GripperBackend(Protocol):
@@ -109,8 +112,8 @@ class RTDEArmBackend:
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
         return bool(self.control.moveJ(list(pose), speed, acceleration))
 
-    def move_joints(self, angles, speed: float, acceleration: float) -> bool:
-        return bool(self.control.moveJ(list(angles), speed, acceleration))
+    def move_joints(self, angles, speed: float, acceleration: float, asynchronous: bool = False) -> bool:
+        return bool(self.control.moveJ(list(angles), speed, acceleration, asynchronous=asynchronous))
 
     def current_tcp_pose(self) -> list[float]:
         return list(self.receive.getActualTCPPose())
@@ -122,6 +125,9 @@ class RTDEArmBackend:
                                q_near: Sequence[float]) -> list[float] | None:
         result = self.control.getInverseKinematics(list(pose), list(q_near))
         return list(result) if len(result) == 6 else None
+    
+    def get_operation_progress(self):
+        return self.control.getAsyncOperationProgressEx()
 
 
 class RobotiqGripperBackend:

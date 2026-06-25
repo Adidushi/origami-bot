@@ -145,10 +145,13 @@ class Arm:
         """
         return self.current_world_pos()
     
-    def go_home(self):
+    def go_home(self, asynchronous=False):
         home_pos = self.config.home
-        self.move_to_joints(home_pos)
+        self.move_to_joints(home_pos, asynchronous=asynchronous)
 
+
+    def is_async_running(self):
+        return self.backend.operationProgress().isAsyncOperationRunning()
 
     # ------------------------------------------------------------------ #
     # Motion — arm (TCP) frame
@@ -246,11 +249,12 @@ class Arm:
     # ------------------------------------------------------------------ #
     def move_to_joints(self, angles: list[float],
                        speed: float | None = None,
-                       acceleration: float | None = None) -> bool:
+                       acceleration: float | None = None,
+                       asynchronous: bool = False) -> bool:
         """Move directly to absolute joint angles ``[j0..j5]`` (radians)."""
         spd = speed or self.config.joint_speed
         acc = acceleration or self.config.joint_acceleration
-        return self.backend.move_joints(angles, spd, acc)
+        return self.backend.move_joints(angles, spd, acc, asynchronous)
 
     def rotate_joint(self, joint: int, delta: float, joint_speed: float | None = None) -> bool:
         """Rotate one joint by ``delta`` radians from its current angle.
