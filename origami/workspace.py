@@ -7,6 +7,7 @@ on a ``Workspace``; the demos build one and run a fold recipe against it.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import time
 
 from . import config
 from .arm import Arm, ArmConfig
@@ -44,10 +45,16 @@ class Workspace:
     board_width: float = config.BOARD_WIDTH
     board_height: float = config.BOARD_HEIGHT
         
-    def go_to_start(self) -> None:
+    def go_to_start(self, asynchronous) -> None:
         """Move both arms to their configured start positions."""
-        self.left.go_home()
-        self.right.go_home()
+        self.left.go_home(asynchronous=asynchronous)
+        self.right.go_home(asynchronous=asynchronous)
+
+        if not asynchronous:
+            return
+        
+        while self.left.is_async_running() or self.right.is_async_running():
+            time.sleep(0.05)
 
     def arm(self, side: str) -> Arm:
         """Return the arm for a given side.
@@ -139,7 +146,7 @@ class Workspace:
         paper = paper or Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT, origin=(0.0, 0.0))
         ws = cls(left, right, paper, magnets or MagnetRegistry())
         if home:
-            ws.go_to_start()
+            ws.go_to_start(asynchronous=True)
         return ws
 
 
