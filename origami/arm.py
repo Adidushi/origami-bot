@@ -151,7 +151,7 @@ class Arm:
 
 
     def is_async_running(self):
-        return self.backend.operationProgress().isAsyncOperationRunning()
+        return self.backend.get_operation_progress().isAsyncOperationRunning()
 
     # ------------------------------------------------------------------ #
     # Motion — arm (TCP) frame
