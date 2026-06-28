@@ -35,6 +35,7 @@ import numpy as np
 
 from origami import config
 from origami.arm import Arm
+from origami.rotation import ToolOrientation, BaseAxis, rot_vec_to_rot_matrix, rot_matrix_to_rot_vec, extract_rot_vec_from_tcp, extract_rot_matrix_from_tcp
 
 from .magnets import Magnet
 from .workspace import Workspace
@@ -264,30 +265,18 @@ def flip_paper(workspace: Workspace,
     a.move_offset_world(0, 0, config.FLIP_PAPER_CLEARANCE)
 
     current_tcp = a.current_tcp_pose()
-    rotation_vector = [0, -math.pi, 0] # rotate -180 degrees about the y-axis to have the gripper face downwards (towards -z)
-    new_tcp = current_tcp[:3] + rotation_vector
-    a.movej_to_tcp(new_tcp)
-
+    tool_down = ToolOrientation.from_tcp_with_tooltip(current_tcp, "down")
+    tool_down_rot_vec = tool_down.to_rot_vec()
+    new_tcp = current_tcp[:3] + tool_down_rot_vec
+    print(f"tool_down_rot_vec: {tool_down_rot_vec}")
+    print(f"type(tool_down_rot_vec): {type(tool_down_rot_vec)}")
+    a.move_to_tcp(new_tcp)
     a.rotate_joint(5, math.pi) # rotate the wrist joint by 180 degrees to flip the paper
-    _,_, _, rx, ry, rz = a.current_tcp_pose() # take current z rotation value after flipping paper to ensure orientation of paper/gripper is maintained
-    # after we rotate -180 degrees about the y-axis to have the gripper face back towards the wall (in the direction of -x) 
-    print(f"rx, ry, rz: {rx}, {ry}, {rz}")
-    new_rotation_vector = [0, -math.pi/2, rz] # rotate -90 degrees about the z-axis to correct the orientation of the gripper after flipping
-    new_tcp = new_tcp[:3] + new_rotation_vector
-    a.movej_to_tcp(new_tcp)
-    # # set arm angles so paper faces straight down
-    # joints = a.get_joint_angles()
-    # joints[3] += math.pi/2
-    # joints[4] += math.pi/4
-    # # and flip the page
-    # joints[5] += math.pi
-    # a.move_to_joints(joints)
-
-    # # undo the face-down orientation
-    # joints = a.get_joint_angles()
-    # joints[3] -= math.pi/2
-    # joints[4] -= math.pi/4
-    # a.move_to_joints(joints)
+    current_tcp = a.current_tcp_pose()
+    tool_up_same_gripper_orientation = ToolOrientation.from_tcp_with_tooltip(current_tcp, "forward")
+    print(f"tool_up_same_gripper_orientation: {tool_up_same_gripper_orientation}")
+    new_tcp = new_tcp[:3] + tool_up_same_gripper_orientation.to_rot_vec()
+    a.move_to_tcp(new_tcp)
 
     # put the paper back
     a.move_offset_world(0, 0, -config.FLIP_PAPER_CLEARANCE)
@@ -558,7 +547,7 @@ def crease(
     #     arm.rotate_joint(4, math.pi/4)
     # else:
     #     arm.rotate_joint(4, -math.pi/4)
-    middle_magnet_width = 7.5/100
+    middle_magnet_width = 7/100
     
     arm.move_to_world(start_x, start_y, crease_height+clearance_offset)
     if axis == 'y':
