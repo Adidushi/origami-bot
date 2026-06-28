@@ -263,19 +263,31 @@ def flip_paper(workspace: Workspace,
     # move arm out of the way for flipping
     a.move_offset_world(0, 0, config.FLIP_PAPER_CLEARANCE)
 
-    # set arm angles so paper faces straight down
-    joints = a.get_joint_angles()
-    joints[3] += math.pi/2
-    joints[4] += math.pi/4
-    # and flip the page
-    joints[5] += math.pi
-    a.move_to_joints(joints)
+    current_tcp = a.current_tcp_pose()
+    rotation_vector = [0, -math.pi, 0] # rotate -180 degrees about the y-axis to have the gripper face downwards (towards -z)
+    new_tcp = current_tcp[:3] + rotation_vector
+    a.movej_to_tcp(new_tcp)
 
-    # undo the face-down orientation
-    joints = a.get_joint_angles()
-    joints[3] -= math.pi/2
-    joints[4] -= math.pi/4
-    a.move_to_joints(joints)
+    a.rotate_joint(5, math.pi) # rotate the wrist joint by 180 degrees to flip the paper
+    _,_, _, rx, ry, rz = a.current_tcp_pose() # take current z rotation value after flipping paper to ensure orientation of paper/gripper is maintained
+    # after we rotate -180 degrees about the y-axis to have the gripper face back towards the wall (in the direction of -x) 
+    print(f"rx, ry, rz: {rx}, {ry}, {rz}")
+    new_rotation_vector = [0, -math.pi/2, rz] # rotate -90 degrees about the z-axis to correct the orientation of the gripper after flipping
+    new_tcp = new_tcp[:3] + new_rotation_vector
+    a.movej_to_tcp(new_tcp)
+    # # set arm angles so paper faces straight down
+    # joints = a.get_joint_angles()
+    # joints[3] += math.pi/2
+    # joints[4] += math.pi/4
+    # # and flip the page
+    # joints[5] += math.pi
+    # a.move_to_joints(joints)
+
+    # # undo the face-down orientation
+    # joints = a.get_joint_angles()
+    # joints[3] -= math.pi/2
+    # joints[4] -= math.pi/4
+    # a.move_to_joints(joints)
 
     # put the paper back
     a.move_offset_world(0, 0, -config.FLIP_PAPER_CLEARANCE)

@@ -107,7 +107,7 @@ class RTDEArmBackend:
         return bool(self.control.moveL(list(pose), speed, acceleration))
 
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
-        return bool(self.control.moveJ(list(pose), speed, acceleration))
+        return bool(self.control.moveJ_IK(list(pose), speed, acceleration))
 
     def move_joints(self, angles, speed: float, acceleration: float) -> bool:
         return bool(self.control.moveJ(list(angles), speed, acceleration))

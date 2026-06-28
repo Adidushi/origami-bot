@@ -169,6 +169,21 @@ class Arm:
         acc = acceleration or self.config.acceleration
         return self.backend.move_linear(pose, spd, acc)
 
+    def movej_to_tcp(self, pose: list[float], speed: float | None = None, acceleration: float | None = None) -> bool:
+        """Move to a raw TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame via moveJ_IK (as we're giving it a TCP pose
+        and calculating joint angles in order to move in joint space).
+
+        Parameters
+        ----------
+        pose : list of float
+            Target TCP pose.
+        speed, acceleration : float or None
+            Override config defaults.
+        """
+        spd = speed or self.config.speed
+        acc = acceleration or self.config.acceleration
+        return self.backend.move_joint_space(pose, spd, acc)
+    
     # ------------------------------------------------------------------ #
     # Motion — world frame
     # ------------------------------------------------------------------ #
