@@ -35,7 +35,7 @@ class ArmBackend(Protocol):
         """
         ...
 
-    def move_joints(self, angles: Sequence[float], speed: float, acceleration: float) -> bool:
+    def move_joints(self, angles: Sequence[float], speed: float, acceleration: float, asynchronous: bool = False) -> bool:
         """Move to a set of joint angles [j0..j5] (radians)."""
         ...
 
@@ -57,6 +57,7 @@ class ArmBackend(Protocol):
         ...
 
     def get_operation_progress(self):
+        """Return the current operation progress object, which can be queried for async status."""
         ...
 
 

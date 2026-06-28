@@ -146,11 +146,13 @@ class Arm:
         return self.current_world_pos()
     
     def go_home(self, asynchronous=False):
+        """Move to the home joint configuration."""
         home_pos = self.config.home
         self.move_to_joints(home_pos, asynchronous=asynchronous)
 
 
     def is_async_running(self):
+        """Check if an asynchronous operation is currently running."""
         return self.backend.get_operation_progress().isAsyncOperationRunning()
 
     # ------------------------------------------------------------------ #
