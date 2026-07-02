@@ -134,7 +134,7 @@ class Arm:
 
     def current_world_pos(self) -> tuple[float, float, float]:
         """Current tool position in world space ``(x, y, z)``."""
-        w = self.calibration._arm_to_world_xyz(self.backend.current_tcp_pose()[:3])
+        w = self.calibration.arm_to_world_xyz(self.backend.current_tcp_pose()[:3])
         return float(w[0]), float(w[1]), float(w[2])
 
     def get_tool_pos(self) -> tuple[float, float, float]:
@@ -193,47 +193,31 @@ class Arm:
     # Motion — world frame
     # ------------------------------------------------------------------ #
     def move_to_world(self, x: float, y: float, z: float,
-                      tool_rotation: float = 0.0,
                       speed: float | None = None,
-                      acceleration: float | None = None,
-                      sideways: bool = False) -> bool:
-        """Move to a world position via moveL.
+                      acceleration: float | None = None) -> bool:
+        """Move to a world position via moveL, preserving the current tool orientation.
 
         Parameters
         ----------
         x, y, z : float
             World coordinates (metres).  z = 0 is the board surface.
-        tool_rotation : float, optional
-            Gripper spin about the board normal (radians).  Default 0.
         speed, acceleration : float or None
             Override config defaults.
-        sideways : bool, optional
-            When ``True`` the gripper is oriented horizontally for a side
-            approach (see `ArmCalibration.gripper_orientation`).
         """
-        return self.move_to_tcp(
-            self.world_to_tcp(x, y, z, tool_rotation, sideways),
-            speed, acceleration,
-        )
+        return self.move_to_tcp(self.world_to_tcp(x, y, z), speed, acceleration)
 
-    def move_offset_world(self, dx: float, dy: float, dz: float,
-                          tool_rotation: float | None = None) -> bool:
-        """Move by ``(dx, dy, dz)`` relative to the current world position.
+    def move_offset_world(self, dx: float, dy: float, dz: float) -> bool:
+        """Move by ``(dx, dy, dz)`` relative to the current world position, preserving orientation.
 
         Parameters
         ----------
         dx, dy, dz : float
             Offset in world coordinates (metres).
-        tool_rotation : float or None, optional
-            New gripper rotation.  ``None`` preserves the current TCP
-            orientation exactly (no recomputation).
         """
         tcp = self.current_tcp_pose()
         x, y, z = self.tcp_to_world(tcp)
-        if tool_rotation is None:
-            new_xyz = self.calibration._world_to_arm_xyz(x + dx, y + dy, z + dz)
-            return self.move_to_tcp(list(new_xyz) + tcp[3:])
-        return self.move_to_world(x + dx, y + dy, z + dz, tool_rotation)
+        new_xyz = self.calibration.world_to_arm_xyz(x + dx, y + dy, z + dz)
+        return self.move_to_tcp(list(new_xyz) + list(tcp[3:]))
 
     def move_up(self, distance: float) -> bool:
         """Rise ``distance`` metres in world z from the current position."""
@@ -299,26 +283,21 @@ class Arm:
     # ------------------------------------------------------------------ #
     # Coordinate conversion (no motion)
     # ------------------------------------------------------------------ #
-    def world_to_tcp(self, x: float, y: float, z: float,
-                     tool_rotation: float = 0.0,
-                     sideways: bool = False) -> list[float]:
-        """Convert a world position to a full TCP pose (no motion).
+    def world_to_tcp(self, x: float, y: float, z: float) -> list[float]:
+        """Convert a world position to a TCP pose, preserving the current tool orientation.
 
         Parameters
         ----------
         x, y, z : float
-            World coordinates.
-        tool_rotation : float, optional
-            Gripper spin about the board normal (radians).  Default 0.
-        sideways : bool, optional
-            When ``True`` the gripper is oriented horizontally.
+            World coordinates (metres).
 
         Returns
         -------
         list of float
-            ``[x, y, z, rx, ry, rz]`` ready for ``moveL``.
+            ``[x_arm, y_arm, z_arm, rx, ry, rz]`` ready for ``moveL``.
         """
-        return self.calibration.tcp_pose(x, y, z, tool_rotation, sideways)
+        tcp = self.current_tcp_pose()
+        return list(self.calibration.world_to_arm_xyz(x, y, z)) + list(tcp[3:])
 
     def tcp_to_world(self, pose: list[float]) -> tuple[float, float, float]:
         """Convert a TCP pose to world coordinates (no motion).
@@ -333,28 +312,21 @@ class Arm:
         tuple of float
             World ``(x, y, z)``.
         """
-        w = self.calibration._arm_to_world_xyz(pose[:3])
+        w = self.calibration.arm_to_world_xyz(pose[:3])
         return float(w[0]), float(w[1]), float(w[2])
 
     # ------------------------------------------------------------------ #
     # Convenience moves
     # ------------------------------------------------------------------ #
-    def move_to_clearance(self, x: float, y: float,
-                          tool_rotation: float = 0.0,
-                          sideways: bool = False) -> bool:
-        """Move to safe transit height above ``(x, y)`` via moveL.
+    def move_to_clearance(self, x: float, y: float) -> bool:
+        """Move to safe transit height above ``(x, y)`` via moveL, preserving orientation.
 
         Parameters
         ----------
         x, y : float
             World target in board plane (metres).
-        tool_rotation : float, optional
-            Gripper spin about the board normal.  Default 0.
-        sideways : bool, optional
-            When ``True`` the gripper is oriented horizontally.
         """
-        return self.move_to_world(x, y, self.config.clearance_z, tool_rotation,
-                                  sideways=sideways)
+        return self.move_to_world(x, y, self.config.clearance_z)
 
     def press(self, x: float, y: float, tool_rotation: float = 0.0) -> bool:
         """Drive the tool onto the board surface at ``(x, y)``.

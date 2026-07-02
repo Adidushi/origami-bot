@@ -27,6 +27,10 @@ class ArmBackend(Protocol):
         """Move the TCP in a straight line to ``pose`` (TCP space, [x,y,z,rx,ry,rz])."""
         ...
 
+    def move_linear_poses(self, poses: Sequence[Sequence[float]], speed: float, acceleration: float) -> bool:
+        """Move the TCP in a straight line to each pose in ``poses`` (TCP space, [x,y,z,rx,ry,rz])."""
+        ...
+
     def move_joint_space(self, pose: Sequence[float], speed: float, acceleration: float) -> bool:
         """Move to a TCP pose via joint interpolation (moveJ with IK).
 
@@ -45,6 +49,13 @@ class ArmBackend(Protocol):
 
     def current_joint_angles(self) -> list[float]:
         """Return the current joint angles ``[j0..j5]`` in radians."""
+        ...
+
+    def get_forward_kinematics(self, pose: Sequence[float]) -> list[float]:
+        """Compute the TCP pose for a given set of joint angles ``pose`` (radians).
+
+        Returns a 6-element list ``[x, y, z, rx, ry, rz]`` in the arm base frame.
+        """
         ...
 
     def get_inverse_kinematics(self, pose: Sequence[float],
@@ -110,6 +121,12 @@ class RTDEArmBackend:
     def move_linear(self, pose, speed: float, acceleration: float) -> bool:
         return bool(self.control.moveL(list(pose), speed, acceleration))
 
+    def move_linear_poses(self, poses, speed: float, acceleration: float) -> bool:
+        # Path form of moveL requires speed, acceleration and blend embedded per waypoint:
+        # each entry is [x, y, z, rx, ry, rz, speed, acceleration, blend].
+        path = [list(pose) + [speed, acceleration, 0.0] for pose in poses]
+        return bool(self.control.moveL(path))
+
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
         return bool(self.control.moveJ_IK(list(pose), speed, acceleration))
 
@@ -122,9 +139,15 @@ class RTDEArmBackend:
     def current_joint_angles(self) -> list[float]:
         return list(self.receive.getActualQ())
 
+    def get_forward_kinematics(self, pose: Sequence[float]) -> list[float]:
+        return list(self.control.getForwardKinematics(list(pose)))
+
     def get_inverse_kinematics(self, pose: Sequence[float],
-                               q_near: Sequence[float]) -> list[float] | None:
-        result = self.control.getInverseKinematics(list(pose), list(q_near))
+                               q_near: Sequence[float] | None = None) -> list[float] | None:
+        if q_near is not None:
+            result = self.control.getInverseKinematics(list(pose), list(q_near))
+        else:
+            result = self.control.getInverseKinematics(list(pose))
         return list(result) if len(result) == 6 else None
     
     def get_operation_progress(self):
@@ -194,6 +217,11 @@ class SimulatedArmBackend:
         self.log.append(("move_linear", self._pose.copy()))
         return True
 
+    def move_linear_poses(self, poses, speed: float, acceleration: float) -> bool:
+        self._poses = [[*list(pose), speed, acceleration, 0.0] for pose in poses]
+        self.log.append(("move_linear poses", self._poses.copy()))
+        return True
+    
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
         self._pose = [float(v) for v in pose]
         self.log.append(("move_joint_space", self._pose.copy()))
@@ -209,6 +237,10 @@ class SimulatedArmBackend:
 
     def current_joint_angles(self) -> list[float]:
         return list(self._joints)
+
+    def get_forward_kinematics(self, pose: Sequence[float]) -> list[float]:
+        # No kinematics model in simulation — return the pose unchanged.
+        return list(pose)
 
     def get_inverse_kinematics(self, _pose: Sequence[float],
                                q_near: Sequence[float]) -> list[float] | None:

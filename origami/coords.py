@@ -174,78 +174,17 @@ class ArmCalibration:
         return cls(SE3.Rt(SO3(R_new, check=False), t))
 
     # ------------------------------------------------------------------ #
-    # Coordinate conversion (internal — Arm is the public interface)
+    # Coordinate conversion
     # ------------------------------------------------------------------ #
-    def _world_to_arm_xyz(self, x: float, y: float, z: float = 0.0) -> np.ndarray:
-        """World (x,y,z) → XYZ in the arm's base frame."""
+    def world_to_arm_xyz(self, x: float, y: float, z: float = 0.0) -> np.ndarray:
+        """World (x, y, z) → XYZ in the arm's base frame."""
         return np.asarray(self.world_to_arm * np.array([x, y, z]),
                           dtype=float).reshape(3)
 
-    def _arm_to_world_xyz(self, arm_xyz) -> np.ndarray:
-        """XYZ in the arm's base frame → world (x,y,z)."""
+    def arm_to_world_xyz(self, arm_xyz) -> np.ndarray:
+        """XYZ in the arm's base frame → world (x, y, z)."""
         return np.asarray(self.world_to_arm.inv() * np.asarray(arm_xyz, dtype=float),
                           dtype=float).reshape(3)
-
-    # ------------------------------------------------------------------ #
-    # Gripper orientation and full TCP pose
-    # ------------------------------------------------------------------ #
-    def gripper_orientation(self, tool_rotation: float = 0.0,
-                            sideways: bool = False) -> SO3:
-        """Base-frame orientation for the gripper.
-
-        Parameters
-        ----------
-        tool_rotation : float, optional
-            Spin about the board normal (radians).  Default ``0``.
-        sideways : bool, optional
-            When ``False`` (default) the gripper points straight down —
-            tool ``+z`` aligned with world ``-z``, fingers horizontal.
-            When ``True`` the gripper is rotated 90° so tool ``+z`` points
-            horizontally in the ``tool_rotation`` direction and the fingers
-            open/close vertically.  Use this for approaching a paper edge
-            from the side.
-
-        Returns
-        -------
-        spatialmath.SO3
-        """
-        R = np.asarray(self.world_to_arm.R, dtype=float)
-        world_x, world_y, world_z = R[:, 0], R[:, 1], R[:, 2]
-        if sideways:
-            # tool_z points horizontally in the approach direction; fingers
-            # (tool_x) point upward so they straddle the paper vertically.
-            tool_z = np.cos(tool_rotation) * world_x + np.sin(tool_rotation) * world_y
-            tool_x = world_z
-            tool_y = np.cross(tool_z, tool_x)
-        else:
-            tool_x = np.cos(tool_rotation) * world_x + np.sin(tool_rotation) * world_y
-            tool_z = -world_z
-            tool_y = np.cross(tool_z, tool_x)
-        return SO3(np.column_stack([tool_x, tool_y, tool_z]), check=False)
-
-    def tcp_pose(self, x: float, y: float, z: float,
-                 tool_rotation: float = 0.0,
-                 sideways: bool = False) -> list[float]:
-        """UR TCP pose ``[x, y, z, rx, ry, rz]`` for a world target.
-
-        Parameters
-        ----------
-        x, y, z : float
-            Target in world coordinates (metres).
-        tool_rotation : float, optional
-            Spin about the board normal (radians).  Default ``0``.
-        sideways : bool, optional
-            Pass ``True`` for a horizontal side approach.  See
-            `gripper_orientation` for details.
-
-        Returns
-        -------
-        list of float
-            Ready to pass to ``moveL``.
-        """
-        position = self._world_to_arm_xyz(x, y, z)
-        transform = SE3.Rt(self.gripper_orientation(tool_rotation, sideways), position)
-        return geo.se3_to_pose(transform)
 
     # ------------------------------------------------------------------ #
     # Diagnostics

@@ -29,17 +29,14 @@ The minimum required overhang is ``GRIP_OVERHANG_MIN`` (5 mm by default).
 from __future__ import annotations
 
 import math
-from typing import Tuple
 
 import numpy as np
 
 from origami import config
-from origami.arm import Arm
-from origami.rotation import ToolOrientation, BaseAxis, rot_vec_to_rot_matrix, rot_matrix_to_rot_vec, extract_rot_vec_from_tcp, extract_rot_matrix_from_tcp
+from origami.rotation import ToolOrientation
 
 from .magnets import Magnet
 from .workspace import Workspace
-import time
 
 # ---------------------------------------------------------------------------
 # Physical constants
@@ -62,36 +59,23 @@ MAGNET_GRIP_CLOSE_POS = 0.8
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _grip_paper_at(arm, pos) -> None:
-    """Transit to above pos, descend to paper height, close gripper, rise to clearance."""
-    x, y = float(pos[0]), float(pos[1])
-    arm.move_to_clearance(x, y)
-    arm.move_to_world(x, y, PAPER_GRIP_HEIGHT)
-    arm.grip()
-    arm.move_to_world(x, y, MAGNET_APPROACH_CLEARANCE)
-
-
-def _grip_magnet_at(arm, x: float, y: float, z: float,
-                    tool_rotation: float) -> None:
+def _grip_magnet_at(arm, x: float, y: float, z: float) -> None:
     """Approach a magnet from above, descend to its grip height, close, retreat."""
     clearance = z + MAGNET_APPROACH_CLEARANCE
-    arm.move_to_world(x, y, clearance, tool_rotation)
-    arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)  # ensure gripper is open before descending and block until it is fully open before moving the arm down
-    arm.move_to_world(x, y, z, tool_rotation)
-    arm.goto(MAGNET_GRIP_CLOSE_POS, blocking=True) # close the gripper and block until it is fully closed before moving the arm up
-    # input("Time to measure magnet") # Remove this later - just for testing
-    arm.move_to_world(x, y, clearance, tool_rotation)
+    arm.move_to_world(x, y, clearance)
+    arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)
+    arm.move_to_world(x, y, z)
+    arm.goto(MAGNET_GRIP_CLOSE_POS, blocking=True)
+    arm.move_to_world(x, y, clearance)
 
 
-def _release_magnet_at(arm, x: float, y: float, z: float,
-                       tool_rotation: float) -> None:
+def _release_magnet_at(arm, x: float, y: float, z: float) -> None:
     """Carry to board position, descend to release height, open, retreat."""
     clearance = z + MAGNET_APPROACH_CLEARANCE
-    arm.move_to_world(x, y, clearance, tool_rotation)
-    arm.move_to_world(x, y, z, tool_rotation)
-    arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)  # open the gripper and block until it is fully open before moving the arm up
-    # input("Time to measure magnet") # Remove this later - just for testing
-    arm.move_to_world(x, y, clearance, tool_rotation)
+    arm.move_to_world(x, y, clearance)
+    arm.move_to_world(x, y, z)
+    arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)
+    arm.move_to_world(x, y, clearance)
 
 
 # ===========================================================================
@@ -120,12 +104,12 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     if magnet.tray_position is not None:
         pick = np.asarray(magnet.handle_xy, dtype=float)
         _grip_magnet_at(arm, float(pick[0]), float(pick[1]),
-                        float(magnet.tray_position[2]) + magnet.grip_height, magnet.orientation)
-    
+                        float(magnet.tray_position[2]) + magnet.grip_height)
+
     # update x and y so handle_xy is calculated correctly for the new position of the magnet
     magnet.place_at(x, y, orientation)
     handle_x, handle_y = magnet.handle_xy
-    _release_magnet_at(arm, handle_x, handle_y, magnet.grip_height, orientation)
+    _release_magnet_at(arm, handle_x, handle_y, magnet.grip_height)
     if magnet.identifier not in workspace.magnets:
         workspace.magnets.add(magnet)
 
@@ -149,9 +133,8 @@ def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     magnet = workspace.magnets.get(identifier)
     handle = magnet.handle_xy
 
-    _grip_magnet_at(arm, float(handle[0]), float(handle[1]),
-                    magnet.grip_height, magnet.orientation)
-    _release_magnet_at(arm, x, y, magnet.grip_height, orientation)
+    _grip_magnet_at(arm, float(handle[0]), float(handle[1]), magnet.grip_height)
+    _release_magnet_at(arm, x, y, magnet.grip_height)
     magnet.place_at(x, y, orientation)
 
 
@@ -170,15 +153,14 @@ def remove_magnet(workspace: Workspace, identifier: str,
     magnet = workspace.magnets.get(identifier)
     handle = magnet.handle_xy
 
-    _grip_magnet_at(arm, float(handle[0]), float(handle[1]),
-                    magnet.grip_height, magnet.orientation)
-    
+    _grip_magnet_at(arm, float(handle[0]), float(handle[1]), magnet.grip_height)
+
     magnet.stow() # Update the magnet's state to reflect that it's stowed away back in the tray
 
     if magnet.tray_position is not None:
         home = magnet.handle_xy
         _release_magnet_at(arm, float(home[0]), float(home[1]),
-                           float(magnet.tray_position[2]) + magnet.grip_height, magnet.orientation)
+                           float(magnet.tray_position[2]) + magnet.grip_height)
     else:
         arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True) # open the gripper and block until it is fully open before moving the arm up
         arm.lift()
@@ -217,47 +199,35 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
     x_start = x - PAPER_APPROACH_OFFSET * math.cos(grip_angle)
     y_start = y - PAPER_APPROACH_OFFSET * math.sin(grip_angle)
 
-    # Step 1: transit to approach start in downward orientation — IK is
-    # well-conditioned here so the arm naturally lands in a good config.
-    a.move_to_clearance(x_start, y_start, grip_angle)
-    # Step 2: ensure elbow-up before asking for the sideways orientation change,
-    # so the subsequent moveL starts from the right configuration.
-    #a.ensure_elbow_up()
-    # Step 3: reorient to sideways at clearance height.
-    a.move_to_clearance(x_start, y_start, grip_angle, sideways=True)
-    # Step 4: safety net — correct if IK still drifted elbow-down.
-    # a.ensure_elbow_up()
-    # Step 5: descend to paper height outside the board (nothing to hit here).
-    a.move_to_world(x_start, y_start, PAPER_GRIP_HEIGHT, grip_angle, sideways=True)
-    # Step 5.5?: open da gripper
+    # Step 1: transit to approach start, preserving current orientation.
+    a.move_to_clearance(x_start, y_start)
+
+    # Sideways orientation: tooltip (tool z) pointing in the approach direction.
+    approach_dir = ToolOrientation.closest_base_axis([-math.cos(grip_angle), math.sin(grip_angle), 0])
+    sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
+
+    # Step 2: reorient to sideways at clearance height.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    # Step 3: descend to paper height outside the board.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
     a.goto(.5)
     # Slide horizontally in to the paper edge.
-    a.move_to_world(x, y, PAPER_GRIP_HEIGHT, grip_angle, sideways=True)
+    a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
     a.grip()
 
 def flip_paper(workspace: Workspace,
                arm: str = "right") -> None:
-    """Grip the paper at an edge or corner by approaching horizontally from outside the board.
+    """Flip the paper held in the gripper by rotating the wrist joint 180°.
 
-    The paper is assumed to overhang the board at ``(x, y)``.  The arm transits
-    to the approach point at clearance height, descends to paper height, then
-    slides in horizontally along ``grip_angle`` to straddle the edge before
-    closing the gripper.
+    Lifts the arm to clearance, reorients the tooltip straight down, rotates
+    wrist joint 5 by π radians, then reorients the tooltip forward to leave
+    the arm in a sideways approach posture.
 
     Parameters
     ----------
     workspace : Workspace
-    x, y : float
-        Board-plane position to grip (metres).  z is fixed to world z = 0
-        (the board/paper surface).
-    grip_angle : float
-        Direction the arm approaches from, as a rotation about the board normal
-        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside the board
-        in the ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in
-        to ``(x, y)``.  Use ``0`` to approach from the left (``-x``), ``π/2``
-        to approach from below (``-y``), etc.
     arm : {'left', 'right'}, optional
-        Which arm performs the grip.  Default ``'right'``.
+        Which arm performs the flip.  Default ``'right'``.
     """
 
     a = workspace.arm(arm)
@@ -265,7 +235,7 @@ def flip_paper(workspace: Workspace,
     a.move_offset_world(0, 0, config.FLIP_PAPER_CLEARANCE)
 
     current_tcp = a.current_tcp_pose()
-    tool_down = ToolOrientation.from_tcp_with_tooltip(current_tcp, "down")
+    tool_down = ToolOrientation.point_tooltip_preserve_gripper_orientation(current_tcp, "down")
     tool_down_rot_vec = tool_down.to_rot_vec()
     new_tcp = current_tcp[:3] + tool_down_rot_vec
     print(f"tool_down_rot_vec: {tool_down_rot_vec}")
@@ -273,7 +243,7 @@ def flip_paper(workspace: Workspace,
     a.move_to_tcp(new_tcp)
     a.rotate_joint(5, math.pi) # rotate the wrist joint by 180 degrees to flip the paper
     current_tcp = a.current_tcp_pose()
-    tool_up_same_gripper_orientation = ToolOrientation.from_tcp_with_tooltip(current_tcp, "forward")
+    tool_up_same_gripper_orientation = ToolOrientation.point_tooltip_preserve_gripper_orientation(current_tcp, "forward")
     print(f"tool_up_same_gripper_orientation: {tool_up_same_gripper_orientation}")
     new_tcp = new_tcp[:3] + tool_up_same_gripper_orientation.to_rot_vec()
     a.move_to_tcp(new_tcp)
@@ -358,13 +328,17 @@ def fold_arc(
         end_pos[1] += 2 * radius
         midpoint[1] += radius
 
-    previous_pos = start_pos
+    sideways_rotvec = ToolOrientation.point_tooltip_preserve_gripper_orientation(
+        arm.current_tcp_pose(), 'forward'
+    ).to_rot_vec()
 
+    previous_pos = start_pos
+    poses: list = [arm.world_to_tcp(*start_pos)[:3] + sideways_rotvec]
     offsets = list()
-    # calculate steps 
+    # calculate steps
     for i in range(1, n_steps+1):
         # if radius is positive, fold to the right, else fold to the left
-        right_flag = np.sign(radius) > 0 
+        right_flag = np.sign(radius) > 0
         base_angle = i*math.pi/n_steps
         angle = (math.pi - base_angle) if right_flag else base_angle
 
@@ -375,15 +349,21 @@ def fold_arc(
         else:
             current_pos[1] += abs(radius) * math.cos(angle)
 
-        #arm.move_to_world(*current_pos, 0, sideways=True)
         offset = [a-b for a,b in zip(current_pos,previous_pos)]
         print(offset)
         offsets.append(offset)
-        # divide by i since rotate joint is relative
-        arm.rotate_joint(5, base_angle/i)
-        arm.move_offset_world(*offset)
-        
+        current_joints = arm.get_joint_angles()
+        current_tcp_pos_after_moving = arm.world_to_tcp(*current_pos)[:3] + sideways_rotvec
+        current_pos_after_moving_joints = arm.backend.get_inverse_kinematics(current_tcp_pos_after_moving, current_joints)
+        current_pos_after_moving_joints[5] += base_angle/i # manually calculate wrist joint angle after an update without actually updating.
+        post_wrist_rot_tcp = arm.backend.get_forward_kinematics(current_pos_after_moving_joints)
+        current_tcp_pos = post_wrist_rot_tcp
+        poses.append(current_tcp_pos)
+
         previous_pos = current_pos.copy()
+    print(f"poses:")
+    [print(pose) for pose in poses]
+    #arm.backend.move_linear_poses(poses, speed=0.1, acceleration=0.1)
     return offsets
 
 def unfold_arc(
@@ -403,24 +383,23 @@ def unfold_arc(
 # afterwards move this out to a crease tool method?
 def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_angle: float,
                arm: str = "right") -> None:
-    """Grip the crease at an edge or corner by approaching horizontally from outside the board.
+    """Grip the creaser tool by approaching horizontally from outside.
 
-    The arm transits to the approach point at clearance height, descends to paper height, then
-    slides in horizontally along ``grip_angle`` to straddle the edge before
-    closing the gripper.
+    Transits to the approach point at clearance height, reorients the tooltip
+    sideways along ``grip_angle``, descends to ``z``, slides in to ``(x, y)``
+    and closes the gripper, then lifts the tool clear and returns home.
 
     Parameters
     ----------
     workspace : Workspace
     x, y, z : float
-        Board-plane position to grip (metres).  z is fixed to world z = 0
-        (the board/paper surface).
+        Position of the creaser tool handle (metres).
     grip_angle : float
         Direction the arm approaches from, as a rotation about the board normal
-        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside the board
-        in the ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in
-        to ``(x, y)``.  Use ``0`` to approach from the left (``-x``), ``π/2``
-        to approach from below (``-y``), etc.
+        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside in the
+        ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in.
+        Use ``0`` to approach from the left (``-x``), ``π/2`` from below
+        (``-y``), etc.
     arm : {'left', 'right'}, optional
         Which arm performs the grip.  Default ``'right'``.
     """
@@ -428,22 +407,20 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
     x_start = x - PAPER_APPROACH_OFFSET * math.cos(grip_angle)
     y_start = y - PAPER_APPROACH_OFFSET * math.sin(grip_angle)
     z_start = z
-    # Step 1: transit to approach start in downward orientation — IK is
-    # well-conditioned here so the arm naturally lands in a good config.
-    a.move_to_clearance(x_start, y_start, grip_angle)
-    # Step 2: ensure elbow-up before asking for the sideways orientation change,
-    # so the subsequent moveL starts from the right configuration.
 
-    # Step 3: reorient to sideways at clearance height.
-    a.move_to_clearance(x_start, y_start, grip_angle, sideways=True)
-    # Step 4: safety net — correct if IK still drifted elbow-down.
+    # Step 1: transit to approach start, preserving current orientation.
+    a.move_to_clearance(x_start, y_start)
 
-    # Step 5: descend to paper height outside the board (nothing to hit here).
-    a.move_to_world(x_start, y_start, z_start, grip_angle, sideways=True)
-    # Step 5.5?: open da gripper
+    approach_dir = ToolOrientation.closest_base_axis([math.cos(grip_angle), math.sin(grip_angle), 0])
+    sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
+
+    # Step 2: reorient to sideways at clearance height.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    # Step 3: descend to grip height.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, z_start)[:3] + sideways_rotvec)
     a.goto(config.CREASER_GRIP_OPEN_POS)
-    # Slide horizontally in to the paper edge.
-    a.move_to_world(x, y, z, grip_angle, sideways=True)
+    # Slide horizontally in to grip point.
+    a.move_to_tcp(a.world_to_tcp(x, y, z)[:3] + sideways_rotvec)
     a.grip()
     a.move_offset_world(-0.07, 0, 0) # move up and back a bit to lift up the creaser tool
     a.move_offset_world(0, 0, 0.05) # move up and back a bit to lift up the creaser tool
@@ -451,46 +428,43 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
 
 def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip_angle: float,
                arm: str = "right") -> None:
-    """Grip the crease at an edge or corner by approaching horizontally from outside the board.
+    """Return the creaser tool to its tray by approaching horizontally and releasing.
 
-    The arm transits to the approach point at clearance height, descends to paper height, then
-    slides in horizontally along ``grip_angle`` to straddle the edge before
-    closing the gripper.
+    Transits to the approach point at clearance height, reorients the tooltip
+    sideways along ``grip_angle``, descends to ``z``, slides in to ``(x, y)``,
+    opens the gripper to release the tool, then retreats and returns home.
 
     Parameters
     ----------
     workspace : Workspace
     x, y, z : float
-        Board-plane position to grip (metres).  z is fixed to world z = 0
-        (the board/paper surface).
+        Position of the creaser tool tray slot (metres).
     grip_angle : float
         Direction the arm approaches from, as a rotation about the board normal
-        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside the board
-        in the ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in
-        to ``(x, y)``.  Use ``0`` to approach from the left (``-x``), ``π/2``
-        to approach from below (``-y``), etc.
+        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside in the
+        ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in.
+        Use ``0`` to approach from the left (``-x``), ``π/2`` from below
+        (``-y``), etc.
     arm : {'left', 'right'}, optional
-        Which arm performs the grip.  Default ``'right'``.
+        Which arm performs the return.  Default ``'right'``.
     """
     a = workspace.arm(arm)
     x_start = x - PAPER_APPROACH_OFFSET * math.cos(grip_angle)
     y_start = y - PAPER_APPROACH_OFFSET * math.sin(grip_angle)
     z_start = z
-    # Step 1: transit to approach start in downward orientation — IK is
-    # well-conditioned here so the arm naturally lands in a good config.
-    a.move_to_clearance(x_start, y_start, grip_angle)
-    # Step 2: ensure elbow-up before asking for the sideways orientation change,
-    # so the subsequent moveL starts from the right configuration.
 
-    # Step 3: reorient to sideways at clearance height.
-    a.move_to_clearance(x_start, y_start, grip_angle, sideways=True)
-    # Step 4: safety net — correct if IK still drifted elbow-down.
+    # Step 1: transit to approach start, preserving current orientation.
+    a.move_to_clearance(x_start, y_start)
 
-    # Step 5: descend to paper height outside the board (nothing to hit here).
-    a.move_to_world(x_start, y_start, z_start, grip_angle, sideways=True)
-    # Step 5.5?: open da gripper
+    approach_dir = ToolOrientation.closest_base_axis([math.cos(grip_angle), math.sin(grip_angle), 0])
+    sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
+
+    # Step 2: reorient to sideways at clearance height.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    # Step 3: descend to grip height.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, z_start)[:3] + sideways_rotvec)
     # Slide horizontally in to the paper edge.
-    a.move_to_world(x, y, z, grip_angle, sideways=True)
+    a.move_to_tcp(a.world_to_tcp(x, y, z)[:3] + sideways_rotvec)
     a.goto(config.CREASER_GRIP_OPEN_POS, blocking=True)
     a.move_offset_world(-0.1, 0, 0) # move up and back a bit to lift up the creaser tool
     a.grip()

@@ -100,8 +100,8 @@ def main() -> None:
         tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.15/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.05/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
-    actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
-    actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
+    # actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
+    # actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
     ws.left.go_home()
 
     # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ def main() -> None:
         axis="x",
         n_steps=8,
     )
-
+    
     # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+3.5/100, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2, carrying_arm="left")
@@ -210,6 +210,7 @@ def calibrate_boards():
             break
         ws.right.move_to_world(origin_x+config.PAPER_WIDTH, 0, 0.5/100)
     
+    ws.left.go_home()
     input("calibrate board")
 
     while input("next?") != "exit":

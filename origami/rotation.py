@@ -194,7 +194,8 @@ class ToolOrientation:
     Attributes
     ----------
     tool_x, tool_y, tool_z : BaseAxis
-        Which cardinal base-frame direction each tool axis points.
+        Which cardinal base-frame direction each tool axis points. 
+        Represents Column 0, 1, 2 of the rotation matrix of the tool frame expressed in terms of the base frame's axes.
     """
 
     # Maps label → tool z-axis direction (tooltip pointing direction).
@@ -273,7 +274,7 @@ class ToolOrientation:
 
     @classmethod
     def from_tcp_pose(cls, pose) -> "ToolOrientation":
-        """Construct from a UR TCP pose ``[x, y, z, rx, ry, rz]``.
+        """Construct ToolOrientation from a UR TCP pose ``[x, y, z, rx, ry, rz]``.
 
         Parameters
         ----------
@@ -283,7 +284,7 @@ class ToolOrientation:
 
     @classmethod
     def from_labels(cls, tooltip: str, gripper: str) -> "ToolOrientation":
-        """Construct from human-readable orientation label names.
+        """Construct ToolOrientation from human-readable orientation label names.
 
         Both labels are required: together they fully determine the rotation
         (tool x = cross(tool_y, tool_z) for a right-handed frame).
@@ -331,35 +332,33 @@ class ToolOrientation:
             tool_z=tool_z,
         )
 
-    # -- constructors from TCP pose with one axis fixed ----------------------
+    # -- constructors from TCP pose with axis reorientation ------------------
 
     @classmethod
-    def from_tcp_with_axis_fixed(
+    def point_axis_to(
         cls,
         pose,
         tool_axis: str,
         direction: BaseAxis,
+        locked_axis: str,
     ) -> "ToolOrientation":
-        """Build from a TCP pose, fixing one tool axis to a desired base-frame
-        direction while preserving the remaining axes from the current pose.
+        """Build a new orientation by pointing one tool axis at a target
+        base-frame direction while keeping a second tool axis locked to its
+        current orientation from the pose.
 
-        Preserved-axis priority (matches UR tool frame semantics):
-
-        - Fixing tool_z: keep tool_y (gripper roll), fall back to tool_x.
-        - Fixing tool_y: keep tool_z (tooltip), fall back to tool_x.
-        - Fixing tool_x: keep tool_y, fall back to tool_z.
-
-        The fallback is needed only when the "preferred" axis happens to be
-        parallel to the newly fixed axis (they cannot both remain in the frame).
+        The third axis is derived to maintain a right-handed frame.
 
         Parameters
         ----------
         pose : array_like, shape (6,)
             Current TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame.
         tool_axis : str
-            Which tool axis to fix: ``'x'``, ``'y'``, or ``'z'``.
+            Which tool axis to reorient: ``'x'``, ``'y'``, or ``'z'``.
         direction : BaseAxis
-            Desired base-frame direction for the fixed axis.
+            Desired base-frame direction for ``tool_axis``.
+        locked_axis : str
+            Which tool axis to preserve from the current pose: ``'x'``, ``'y'``,
+            or ``'z'``.  Must differ from ``tool_axis``.
 
         Returns
         -------
@@ -368,57 +367,60 @@ class ToolOrientation:
         Raises
         ------
         ValueError
-            If ``tool_axis`` is not ``'x'``, ``'y'``, or ``'z'``.
+            If ``tool_axis`` and ``locked_axis`` are the same, if either is not
+            ``'x'``, ``'y'``, or ``'z'``, or if ``direction`` is parallel to
+            the locked axis (degenerate frame).
 
         Examples
         --------
-        Point the tooltip straight down while keeping the current gripper roll::
+        Point tool z toward base -x while keeping current tool y orientation::
 
-            new_orient = ToolOrientation.from_tcp_with_axis_fixed(
-                arm.current_tcp_pose(), 'z', BaseAxis.NEG_Z
+            new_orient = ToolOrientation.point_axis_to(
+                arm.current_tcp_pose(), 'z', BaseAxis.NEG_X, 'y'
             )
         """
         if tool_axis not in ('x', 'y', 'z'):
             raise ValueError(f"tool_axis must be 'x', 'y', or 'z', got {tool_axis!r}")
-
+        if locked_axis not in ('x', 'y', 'z'):
+            raise ValueError(f"locked_axis must be 'x', 'y', or 'z', got {locked_axis!r}")
+        if tool_axis == locked_axis:
+            raise ValueError(
+                f"tool_axis and locked_axis must differ, both are {tool_axis!r}"
+            )
+    
         cur = cls.from_tcp_pose(pose)
+        locked_vec = getattr(cur, f"tool_{locked_axis}").vector
 
-        if tool_axis == 'z':
-            new_z = direction
-            # Prefer to keep current tool_y (gripper roll); fall back to tool_x.
-            if abs(np.dot(cur.tool_y.vector, new_z.vector)) < 0.5:
-                new_y = cur.tool_y
-            else:
-                new_y = cls.closest_base_axis(np.cross(new_z.vector, cur.tool_x.vector))
-            new_x = cls.closest_base_axis(np.cross(new_y.vector, new_z.vector))
-            return cls(tool_x=new_x, tool_y=new_y, tool_z=new_z)
+        if abs(np.dot(direction.vector, locked_vec)) > 0.5:
+            raise ValueError(
+                f"tool_{tool_axis} direction {direction} is parallel to locked "
+                f"tool_{locked_axis} — choose a non-parallel direction"
+            )
 
-        if tool_axis == 'y':
-            new_y = direction
-            # Prefer to keep current tool_z (tooltip); fall back to tool_x.
-            if abs(np.dot(cur.tool_z.vector, new_y.vector)) < 0.5:
-                new_z = cur.tool_z
-            else:
-                new_z = cls.closest_base_axis(np.cross(cur.tool_x.vector, new_y.vector))
-            new_x = cls.closest_base_axis(np.cross(new_y.vector, new_z.vector))
-            return cls(tool_x=new_x, tool_y=new_y, tool_z=new_z)
-
-        # tool_axis == 'x'
-        new_x = direction
-        # Prefer to keep current tool_y; fall back to tool_z.
-        if abs(np.dot(cur.tool_y.vector, new_x.vector)) < 0.5:
-            new_y = cur.tool_y
+        axes: dict[str, np.ndarray] = {
+            tool_axis: direction.vector,
+            locked_axis: locked_vec,
+        }
+        # Derive the third axis using the right-hand rule: x=cross(y,z), y=cross(z,x), z=cross(x,y)
+        (derived,) = {'x', 'y', 'z'} - {tool_axis, locked_axis}
+        if derived == 'x':
+            axes['x'] = np.cross(axes['y'], axes['z'])
+        elif derived == 'y':
+            axes['y'] = np.cross(axes['z'], axes['x'])
         else:
-            new_y = cls.closest_base_axis(np.cross(cur.tool_z.vector, new_x.vector))
-        new_z = cls.closest_base_axis(np.cross(new_x.vector, new_y.vector))
-        return cls(tool_x=new_x, tool_y=new_y, tool_z=new_z)
+            axes['z'] = np.cross(axes['x'], axes['y'])
+
+        return cls(
+            tool_x=cls.closest_base_axis(axes['x']),
+            tool_y=cls.closest_base_axis(axes['y']),
+            tool_z=cls.closest_base_axis(axes['z']),
+        )
 
     @classmethod
-    def from_tcp_with_tooltip(cls, pose, tooltip: str) -> "ToolOrientation":
-        """Fix the tooltip direction (tool z) while preserving gripper roll from pose.
-
-        Wrapper around ``from_tcp_with_axis_fixed`` using the ``TOOLTIP_DIRECTIONS``
-        label map.
+    def point_tooltip_preserve_gripper_orientation(
+        cls, pose, tooltip: str
+    ) -> "ToolOrientation":
+        """Point the tooltip (tool z) in a new direction while preserving gripper roll.
 
         Parameters
         ----------
@@ -435,13 +437,14 @@ class ToolOrientation:
         Raises
         ------
         ValueError
-            Unknown tooltip label.
+            Unknown tooltip label, or new direction is parallel to the current
+            gripper-roll axis.
 
         Examples
         --------
-        Reorient the tooltip straight down, keeping the current gripper roll::
+        Point the tooltip straight down, keeping the current gripper roll::
 
-            new_orient = ToolOrientation.from_tcp_with_tooltip(
+            new_orient = ToolOrientation.point_tooltip_preserve_gripper_orientation(
                 arm.current_tcp_pose(), 'down'
             )
         """
@@ -450,14 +453,13 @@ class ToolOrientation:
                 f"unknown tooltip direction {tooltip!r}; "
                 f"choose from {list(cls.TOOLTIP_DIRECTIONS)}"
             )
-        return cls.from_tcp_with_axis_fixed(pose, 'z', cls.TOOLTIP_DIRECTIONS[tooltip])
+        return cls.point_axis_to(pose, 'z', cls.TOOLTIP_DIRECTIONS[tooltip], 'y')
 
     @classmethod
-    def from_tcp_with_gripper(cls, pose, gripper: str) -> "ToolOrientation":
-        """Fix the gripper roll (tool y) while preserving tooltip direction from pose.
-
-        Wrapper around ``from_tcp_with_axis_fixed`` using the ``GRIPPER_ORIENTATIONS``
-        label map.
+    def point_gripper_preserve_tooltip(
+        cls, pose, gripper: str
+    ) -> "ToolOrientation":
+        """Set the gripper roll (tool y) while preserving the current tooltip direction.
 
         Parameters
         ----------
@@ -474,13 +476,14 @@ class ToolOrientation:
         Raises
         ------
         ValueError
-            Unknown gripper label.
+            Unknown gripper label, or new direction is parallel to the current
+            tooltip axis.
 
         Examples
         --------
         Set the gripper to vertical-up roll, keeping the current tooltip direction::
 
-            new_orient = ToolOrientation.from_tcp_with_gripper(
+            new_orient = ToolOrientation.point_gripper_preserve_tooltip(
                 arm.current_tcp_pose(), 'vertical_up'
             )
         """
@@ -489,7 +492,7 @@ class ToolOrientation:
                 f"unknown gripper orientation {gripper!r}; "
                 f"choose from {list(cls.GRIPPER_ORIENTATIONS)}"
             )
-        return cls.from_tcp_with_axis_fixed(pose, 'y', cls.GRIPPER_ORIENTATIONS[gripper])
+        return cls.point_axis_to(pose, 'y', cls.GRIPPER_ORIENTATIONS[gripper], 'z')
 
     # -- conversion ----------------------------------------------------------
 
