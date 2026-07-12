@@ -197,14 +197,19 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
         Which arm performs the grip.  Default ``'right'``.
     """
     a = workspace.arm(arm)
-    x_start = x - PAPER_APPROACH_OFFSET * math.cos(grip_angle)
-    y_start = y - PAPER_APPROACH_OFFSET * math.sin(grip_angle)
+    # grip angle is relative to forward direction, which is relative to y axis,
+    # however typically angles are defined relative to x axis so that x stuff is via cos and y stuff is via sin,
+    # by taking 90 - angle = pi/2 - angle we get the angle relative to the x axis again.
+    x_start = x + PAPER_APPROACH_OFFSET * math.cos(math.pi/2-grip_angle)
+    y_start = y - PAPER_APPROACH_OFFSET * math.sin(math.pi/2-grip_angle)
 
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
     forward_rotvec = ToolOrientation.from_labels(tooltip="forward", gripper="flat").to_rot_vec()
-    a.rotate_absolute(*forward_rotvec) # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
-    a.rotate_relative(0,0, grip_angle) # rotate the gripper to point in the direction of the grip angle so that it can approach the paper edge at the correct angle
+    # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
+    # rotate the gripper to point in the direction of the grip angle so that it can approach the paper edge at the correct angle
+    forward_rotated_rotvec = compose_rotation_vectors(forward_rotvec, [0, 0, grip_angle])
+    a.rotate_absolute(*forward_rotated_rotvec) 
     
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
     a.goto(.5) # open the gripper to prepare to grip the paper
@@ -258,6 +263,7 @@ def fold_arc(
     arm_side: str,
     end_pos: list[float, float, float],
     n_steps: int = 8,
+    fold_percent: float = 1.0
 ) -> None:
     """Fold paper by sweeping the gripped edge through a semicircular arc along the fold axis defined by 
     the vector from start to end positions of the fold.  
@@ -306,8 +312,12 @@ def fold_arc(
         y = y1 * c + y2 * (1 - c)
         z = math.sin(theta) * radius + z1
 
-        # calculate rotation vector
-        rx, ry, rz = compose_rotation_vectors(arm.current_tcp_pose()[3:], (rotation_vector * i * -math.pi/n_steps))
+        if i / n_steps > fold_percent:
+            rx, ry, rz = poses[-1][3:]  # keep the last rotation vector if we are beyond the fold percent
+        else:
+            # otherwise, calculate rotation vector
+            rx, ry, rz = compose_rotation_vectors(arm.current_tcp_pose()[3:], (rotation_vector * i * -math.pi/n_steps))
+
         x, y, z, rx, ry, rz = float(x), float(y), float(z), float(rx), float(ry), float(rz)
         poses.append([x, y, z, rx, ry, rz])
 
