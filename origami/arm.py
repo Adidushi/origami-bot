@@ -46,6 +46,7 @@ from dataclasses import dataclass
 from . import backends as backends_mod
 from .backends import ArmBackend, GripperBackend
 from .coords import ArmCalibration
+from .rotation import compose_rotation_vectors
 
 
 @dataclass
@@ -188,7 +189,29 @@ class Arm:
         spd = speed or self.config.speed
         acc = acceleration or self.config.acceleration
         return self.backend.move_joint_space(pose, spd, acc)
-    
+
+    def rotate_relative(self, drx: float, dry: float, drz: float,
+                        speed: float | None = None,
+                        acceleration: float | None = None) -> bool:
+        """Apply a relative rotation to the tool, keeping its position fixed.
+
+        The delta is an axis-angle rotation vector ``[drx, dry, drz]`` expressed
+        in the arm's base frame (direction = rotation axis, magnitude = rotation
+        angle in radians).  It is composed with the current tool orientation
+        using Rodrigues' axis-angle composition formula, so the resulting
+        rotation equals ``R_delta @ R_current``.
+
+        Parameters
+        ----------
+        drx, dry, drz : float
+            Components of the relative axis-angle rotation vector (radians).
+        speed, acceleration : float or None
+            Override config defaults.
+        """
+        tcp = self.current_tcp_pose()
+        new_rotvec = compose_rotation_vectors(tcp[3:], [drx, dry, drz])
+        return self.move_to_tcp(list(tcp[:3]) + new_rotvec.tolist(), speed, acceleration)
+
     # ------------------------------------------------------------------ #
     # Motion — world frame
     # ------------------------------------------------------------------ #

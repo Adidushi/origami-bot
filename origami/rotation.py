@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+import math
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 
@@ -68,6 +70,62 @@ def rot_matrix_to_rot_vec(R: np.ndarray) -> np.ndarray:
         Axis-angle rotation vector.
     """
     return Rotation.from_matrix(np.asarray(R, dtype=float)).as_rotvec()
+
+
+def compose_rotation_vectors(first, second) -> np.ndarray:
+    """Compose two axis-angle rotations using Rodrigues' composition formula.
+
+    Given two rotations expressed as rotation vectors (direction = axis,
+    magnitude = angle in radians), returns the single rotation vector that is
+    equivalent to applying ``first`` and then ``second``.  In rotation-matrix
+    terms the result equals ``R_second @ R_first``.
+
+    The half-angle (quaternion) form of Rodrigues' formula is used, following
+    https://math.stackexchange.com/questions/382760.  With ``first`` having
+    angle ``a`` about unit axis ``â`` and ``second`` having angle ``b`` about
+    unit axis ``b̂``, the combined rotation ``(g, ĉ)`` satisfies::
+
+        cos(g/2)          = cos(a/2) cos(b/2) - sin(a/2) sin(b/2) (â · b̂)
+        sin(g/2) ĉ        = sin(a/2) cos(b/2) â + cos(a/2) sin(b/2) b̂
+                            + sin(a/2) sin(b/2) (b̂ × â)
+
+    Parameters
+    ----------
+    first : array_like, shape (3,)
+        Rotation vector applied first.
+    second : array_like, shape (3,)
+        Rotation vector applied second.
+
+    Returns
+    -------
+    numpy.ndarray, shape (3,)
+        Combined axis-angle rotation vector.
+    """
+    v1 = np.asarray(first, dtype=float).reshape(3)
+    v2 = np.asarray(second, dtype=float).reshape(3)
+
+    a = float(np.linalg.norm(v1))
+    b = float(np.linalg.norm(v2))
+
+    # Unit axes; a zero-angle rotation has an arbitrary axis, so use a
+    # placeholder that is multiplied by sin(0) = 0 and therefore drops out.
+    axis1 = v1 / a if a > 0.0 else np.zeros(3)
+    axis2 = v2 / b if b > 0.0 else np.zeros(3)
+
+    ca, sa = math.cos(a / 2.0), math.sin(a / 2.0)
+    cb, sb = math.cos(b / 2.0), math.sin(b / 2.0)
+
+    # Quaternion scalar and vector parts of the composed rotation.
+    w = ca * cb - sa * sb * float(np.dot(axis1, axis2))
+    xyz = sa * cb * axis1 + ca * sb * axis2 + sa * sb * np.cross(axis2, axis1)
+
+    sin_half = float(np.linalg.norm(xyz))
+    if sin_half < 1e-12:
+        # Combined rotation is (near) identity.
+        return np.zeros(3)
+
+    angle = 2.0 * math.atan2(sin_half, w)
+    return (xyz / sin_half) * angle
 
 
 def extract_rot_vec_from_tcp(pose) -> np.ndarray:
