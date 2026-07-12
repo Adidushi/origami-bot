@@ -62,22 +62,18 @@ def main() -> None:
     
     # Centre an A4 sheet on the board.  A4 is 297 mm tall on a 270 mm board,
     # giving a natural 13.5 mm overhang on both the top and bottom edges.
-    origin_x = config.BOARD_WIDTH  / 2 - config.PAPER_WIDTH  / 2
-    origin_y = config.BOARD_HEIGHT / 2 - config.PAPER_HEIGHT / 2   # < 0
+    paper_bottom_left_corner_x = config.BOARD_WIDTH  / 2 - config.PAPER_WIDTH  / 2
+    paper_bottom_edge_y = config.BOARD_HEIGHT / 2 - config.PAPER_HEIGHT / 2   # < 0
     ws.paper = Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT,
-                               origin=(origin_x, origin_y))
-    
+                               origin=(paper_bottom_left_corner_x, paper_bottom_edge_y))
+    paper_bottom_right_corner_x = paper_bottom_left_corner_x + config.PAPER_WIDTH
     # Grip the bottom-right corner of the paper from the −y side (below board)
-    grip_x = origin_x+1/100   # LEFT! edge of paper
-    grip_y = origin_y+0.3/100                         # bottom edge, overhangs board
-
     print()
-    print(f"paper bottom-left corner   ({grip_x:.4f}, {grip_y:.4f})")
-    print(f"paper bottom-right corner  ({grip_x:.4f}, {grip_y:.4f})")
-    # print(f"overhang below board       {-grip_y * 1000:.1f} mm")
+    print(f"paper bottom-left corner   ({paper_bottom_left_corner_x:.4f}, {paper_bottom_edge_y:.4f})")
+    print(f"paper bottom-right corner  ({paper_bottom_right_corner_x:.4f}, {paper_bottom_edge_y:.4f})")
 
     # ---------------------------------------------------------------------------
-    # Step 1 — place initial magnet
+    # Step 1 — place initial magnets
     # ---------------------------------------------------------------------------
     print("[Step 1] Place initial magnets")
     block_a = BlockMagnet(
@@ -100,8 +96,8 @@ def main() -> None:
         tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.15/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.05/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
-    # actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
-    # actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
+    actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
+    actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
     ws.left.go_home()
 
     # ---------------------------------------------------------------------------
@@ -111,16 +107,16 @@ def main() -> None:
     # Grip the paper edge with the right arm (sideways horizontal approach)
     actions.grip_paper(
         workspace=ws, 
-        x=grip_x, 
-        y=grip_y, 
-        grip_angle=math.pi / 2, 
+        x=paper_bottom_left_corner_x + 1/100,  # approach from just beyond the left edge of the paper
+        y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
+        grip_angle=0,
         arm="right"
     )
 
     # ---------------------------------------------------------------------------
-    # Step 3 — fold arc  (replaces estimated_circular_motion)
+    # Step 3 — fold paper in half  
     # ---------------------------------------------------------------------------
-    print("[Step 3] estimated_circular_motion — fold arc")
+    print("[Step 3] fold paper in half")
 
     # Fold axis at the board centre: folds the right half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
@@ -133,22 +129,36 @@ def main() -> None:
         n_steps=8,
     )
     
+    # ---------------------------------------------------------------------------
+    # Step 4 — place l-bracket magnet to hold the fold  
+    # ---------------------------------------------------------------------------
+    print("[Step 4] place l-bracket magnet to hold the fold")
     # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+3.5/100, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2, carrying_arm="left")
-
+    # ---------------------------------------------------------------------------
+    # Step 5 — crease paper
+    # ---------------------------------------------------------------------------
+    print("[Step 5] crease paper")
     actions.crease(
         workspace=ws,
         arm_side="left",
-        start_x=origin_x + config.PAPER_WIDTH / 2 + 3/100,  # start just beyond the left edge of the paper
-        start_y=origin_y,
+        start_x=paper_bottom_left_corner_x + config.PAPER_WIDTH / 2 + 3/100,  # start just beyond the left edge of the paper
+        start_y=paper_bottom_edge_y,
         crease_length=config.PAPER_HEIGHT,
         axis="y"
     )
 
+    # ---------------------------------------------------------------------------
+    # Step 6 — remove l-bracket magnet
+    # ---------------------------------------------------------------------------
+    print("[Step 6] remove l-bracket magnet")
     actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
     ws.arm(side='left').go_home()
-
+    # ---------------------------------------------------------------------------
+    # Step 7 — unfold paper
+    # ---------------------------------------------------------------------------
+    print("[Step 7] unfold paper")
     actions.unfold_arc(
         ws,
         arm_side="right",
@@ -158,22 +168,50 @@ def main() -> None:
     ws.arm(side='right').move_offset_world(0,-2/100,0)
     ws.arm(side='right').go_home()
 
+    # ---------------------------------------------------------------------------
+    # Step 8 — remove placed magnets
+    # ---------------------------------------------------------------------------
+    print("[Step 8] remove placed magnets")
     actions.remove_magnet(ws, 'block_a', carrying_arm="left")
     actions.remove_magnet(ws, 'block_b', carrying_arm="left")
     ws.arm(side='left').go_home()
 
-    grip_x = config.BOARD_WIDTH/2
-
+    # ---------------------------------------------------------------------------
+    # Step 9 — flip paper over
+    # ---------------------------------------------------------------------------
+    print("[Step 9] flip paper over")
+    actions.flip_paper(workspace=ws, arm="right")
+    # ---------------------------------------------------------------------------
+    # Step 10 — grab paper for second fold — grip right paper edge
+    # ---------------------------------------------------------------------------
+    print("[Step 10] grab paper for second fold — grip right paper edge")
+    # Grip the paper edge with the right arm (sideways horizontal approach)
     actions.grip_paper(
         workspace=ws, 
-        x=grip_x, 
-        y=grip_y, 
-        grip_angle=math.pi / 2, 
+        x=paper_bottom_right_corner_x - 1/100,  # approach from just beyond the right edge of the paper
+        y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
+        grip_angle=math.pi / 4,
         arm="right"
     )
 
-    actions.flip_paper(workspace=ws, arm="right")
-    
+    # ---------------------------------------------------------------------------
+    # Step 11 — fold paper from right corner to middle
+    # ---------------------------------------------------------------------------
+    print("[Step 11] fold paper from right corner to middle")
+
+    # Fold axis at the board centre: folds the right half of the paper over.
+    # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
+    end_pos = list(ws.right.current_world_pos())
+    end_pos[0] -= 9/100
+    end_pos[1] += 9/100
+    offsets = actions.fold_arc(
+        ws,
+        arm_side="right",
+        end_pos=end_pos,
+        n_steps=8,
+        fold_percent=5/8
+    )
+
     ws.arm(side='right').release()
     ws.arm(side='right').move_offset_world(0,-2/100,0)
     ws.arm(side='right').go_home()
