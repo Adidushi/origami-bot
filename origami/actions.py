@@ -37,6 +37,7 @@ from origami.rotation import ToolOrientation
 
 from .magnets import Magnet
 from .workspace import Workspace
+from .rotation import compose_rotation_vectors
 
 # ---------------------------------------------------------------------------
 # Physical constants
@@ -201,18 +202,24 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
 
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
+    a.rotate_relative(0, 0, math.pi/2) # rotate the arm to the grip angle so that it is facing the paper edge
 
     # Sideways orientation: tooltip (tool z) pointing in the approach direction.
-    approach_dir = ToolOrientation.closest_base_axis([-math.cos(grip_angle), math.sin(grip_angle), 0])
-    sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
+    #approach_dir = ToolOrientation.closest_base_axis([-math.cos(grip_angle), math.sin(grip_angle), 0])
+    #sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
 
     # Step 2: reorient to sideways at clearance height.
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    #a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
+    #a.rotate_relative(*compose_rotation_vectors((0, math.pi/2, 0), (-math.pi/2, 0, 0)))
+    a.rotate_relative(0, math.pi/2, 0) # rotate the arm to point forward so that it is facing the paper edge
     # Step 3: descend to paper height outside the board.
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
+    #a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT))
     a.goto(.5)
     # Slide horizontally in to the paper edge.
-    a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
+    #a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT))
     a.grip()
 
 def flip_paper(workspace: Workspace,
@@ -259,8 +266,7 @@ def flip_paper(workspace: Workspace,
 def fold_arc(
     workspace: Workspace,
     arm_side: str,
-    radius: float,
-    axis: str,
+    end_pos: list[float, float, float],
     n_steps: int = 8,
 ) -> None:
     """Fold paper by sweeping the gripped edge through a semicircular arc about a fold line.
@@ -314,57 +320,28 @@ def fold_arc(
     arm = workspace.arm(arm_side)
 
     # set the starting position
-    start_pos = list(arm.current_world_pos())
+    x1, y1, z1 = list(arm.current_tcp_pose())[:3]
+    x2, y2 = list(arm.world_to_tcp(*end_pos))[:2]
+    radius = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)/2
+    rotation_vector = np.cross([x2 - x1, y2 - y1, 0], [0, 0, 1])
+    rotation_vector /= np.linalg.norm(rotation_vector)
 
-    # set the mid and end point depending on radius and axis selection
-    if (axis == 'x'):
-        end_pos = start_pos.copy()
-        midpoint = start_pos.copy()
-        end_pos[0] += 2 * radius
-        midpoint[0] += radius
-    else:
-        end_pos = start_pos.copy()
-        midpoint = start_pos.copy()
-        end_pos[1] += 2 * radius
-        midpoint[1] += radius
-
-    sideways_rotvec = ToolOrientation.point_tooltip_preserve_gripper_orientation(
-        arm.current_tcp_pose(), 'forward'
-    ).to_rot_vec()
-
-    previous_pos = start_pos
-    poses: list = [arm.world_to_tcp(*start_pos)[:3] + sideways_rotvec]
-    offsets = list()
-    # calculate steps
+    poses = list()
     for i in range(1, n_steps+1):
-        # if radius is positive, fold to the right, else fold to the left
-        right_flag = np.sign(radius) > 0
-        base_angle = i*math.pi/n_steps
-        angle = (math.pi - base_angle) if right_flag else base_angle
+        # calculate x, y, z on half-circle
+        theta = math.pi * i / n_steps
+        # interpolate x and y between start and end positions using cosine interpolation
+        c = (math.cos(theta) + 1) / 2
+        x = x1 * c + x2 * (1 - c)
+        y = y1 * c + y2 * (1 - c)
+        z = math.sin(theta) * radius + z1
 
-        current_pos = midpoint.copy()
-        current_pos[2] += abs(radius) * math.sin(angle)
-        if (axis == 'x'):
-            current_pos[0] += abs(radius) * math.cos(angle)
-        else:
-            current_pos[1] += abs(radius) * math.cos(angle)
+        # calculate rotation vector
+        rx, ry, rz = compose_rotation_vectors(arm.current_tcp_pose()[3:], (rotation_vector * i * -math.pi/n_steps))
+        x, y, z, rx, ry, rz = float(x), float(y), float(z), float(rx), float(ry), float(rz)
+        poses.append([x, y, z, rx, ry, rz])
 
-        offset = [a-b for a,b in zip(current_pos,previous_pos)]
-        print(offset)
-        offsets.append(offset)
-        current_joints = arm.get_joint_angles()
-        current_tcp_pos_after_moving = arm.world_to_tcp(*current_pos)[:3] + sideways_rotvec
-        current_pos_after_moving_joints = arm.backend.get_inverse_kinematics(current_tcp_pos_after_moving, current_joints)
-        current_pos_after_moving_joints[5] += base_angle/i # manually calculate wrist joint angle after an update without actually updating.
-        post_wrist_rot_tcp = arm.backend.get_forward_kinematics(current_pos_after_moving_joints)
-        current_tcp_pos = post_wrist_rot_tcp
-        poses.append(current_tcp_pos)
-
-        previous_pos = current_pos.copy()
-    print(f"poses:")
-    [print(pose) for pose in poses]
-    #arm.backend.move_linear_poses(poses, speed=0.1, acceleration=0.1)
-    return offsets
+    arm.backend.move_linear_poses(poses, speed=0.1, acceleration=0.1)
 
 def unfold_arc(
     workspace: Workspace,

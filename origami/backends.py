@@ -27,7 +27,7 @@ class ArmBackend(Protocol):
         """Move the TCP in a straight line to ``pose`` (TCP space, [x,y,z,rx,ry,rz])."""
         ...
 
-    def move_linear_poses(self, poses: Sequence[Sequence[float]], speed: float, acceleration: float) -> bool:
+    def move_linear_poses(self, poses: Sequence[Sequence[float]], speed: float, acceleration: float, blend: float = 0.5/100) -> bool:
         """Move the TCP in a straight line to each pose in ``poses`` (TCP space, [x,y,z,rx,ry,rz])."""
         ...
 
@@ -121,10 +121,10 @@ class RTDEArmBackend:
     def move_linear(self, pose, speed: float, acceleration: float) -> bool:
         return bool(self.control.moveL(list(pose), speed, acceleration))
 
-    def move_linear_poses(self, poses, speed: float, acceleration: float) -> bool:
+    def move_linear_poses(self, poses, speed: float, acceleration: float, blend: float = 0.5/100) -> bool:
         # Path form of moveL requires speed, acceleration and blend embedded per waypoint:
         # each entry is [x, y, z, rx, ry, rz, speed, acceleration, blend].
-        path = [list(pose) + [speed, acceleration, 0.0] for pose in poses]
+        path = [list(pose) + [speed, acceleration, blend] for pose in poses]
         return bool(self.control.moveL(path))
 
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
@@ -217,8 +217,8 @@ class SimulatedArmBackend:
         self.log.append(("move_linear", self._pose.copy()))
         return True
 
-    def move_linear_poses(self, poses, speed: float, acceleration: float) -> bool:
-        self._poses = [[*list(pose), speed, acceleration, 0.0] for pose in poses]
+    def move_linear_poses(self, poses, speed: float, acceleration: float, blend: float = 0.5/100) -> bool:
+        self._poses = [[*list(pose), speed, acceleration, blend] for pose in poses]
         self.log.append(("move_linear poses", self._poses.copy()))
         return True
     

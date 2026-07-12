@@ -124,11 +124,12 @@ def main() -> None:
 
     # Fold axis at the board centre: folds the right half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
+    end_pos = list(ws.right.current_world_pos())
+    end_pos[0] += 2*9.5/100
     offsets = actions.fold_arc(
         ws,
         arm_side="right",
-        radius=9.5/100,
-        axis="x",
+        end_pos=end_pos,
         n_steps=8,
     )
     
