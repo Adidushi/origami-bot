@@ -202,25 +202,15 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
 
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
-    a.rotate_relative(0, 0, math.pi/2) # rotate the arm to the grip angle so that it is facing the paper edge
-
-    # Sideways orientation: tooltip (tool z) pointing in the approach direction.
-    #approach_dir = ToolOrientation.closest_base_axis([-math.cos(grip_angle), math.sin(grip_angle), 0])
-    #sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
-
-    # Step 2: reorient to sideways at clearance height.
-    #a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
-    #a.rotate_relative(*compose_rotation_vectors((0, math.pi/2, 0), (-math.pi/2, 0, 0)))
-    a.rotate_relative(0, math.pi/2, 0) # rotate the arm to point forward so that it is facing the paper edge
-    # Step 3: descend to paper height outside the board.
-    #a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT))
-    a.goto(.5)
+    forward_rotvec = ToolOrientation.from_labels(tooltip="forward", gripper="flat").to_rot_vec()
+    a.rotate_absolute(*forward_rotvec) # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
+    a.rotate_relative(0,0, grip_angle) # rotate the gripper to point in the direction of the grip angle so that it can approach the paper edge at the correct angle
+    
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
+    a.goto(.5) # open the gripper to prepare to grip the paper
     # Slide horizontally in to the paper edge.
-    #a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT)[:3] + sideways_rotvec)
     a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT))
-    a.grip()
+    a.grip() # grip paper
 
 def flip_paper(workspace: Workspace,
                arm: str = "right") -> None:
@@ -269,47 +259,27 @@ def fold_arc(
     end_pos: list[float, float, float],
     n_steps: int = 8,
 ) -> None:
-    """Fold paper by sweeping the gripped edge through a semicircular arc about a fold line.
-
-    In origami, a fold is defined by a *fold line* — the straight crease on the
-    paper's surface that stays fixed while one half of the sheet rotates up and
-    over it (i.e. the fold line is created at the *midpoint of the fold* itself, in
-    the perpendicular direction to the fold axis).  This function controls two things:
-
-    * `axis` — the direction the gripper *travels* during the fold (i.e. the
-      direction perpendicular to the fold line). 
-
-      - `axis='x'`: gripper travels in x → fold line (crease) runs parallel to the y-axis.
-      - `axis='y'`: gripper travels in y → fold line (crease) runs parallel to the x-axis.
-
-    * `radius` — how far the fold line is from the grip point, and in which
-      direction.  The fold line lies on the board surface (z = 0) at coordinate
-      `current_pos[axis] + radius` along the named axis.
+    """Fold paper by sweeping the gripped edge through a semicircular arc along the fold axis defined by 
+    the vector from start to end positions of the fold.  
 
     Call this immediately after `grip_paper`; the arm's current position is
     taken as the arc start point.  The gripper sweeps through a true semicircle
-    of radius `|radius|` in the plane of `axis` and z, ending on the
-    opposite side of the fold line.  The remaining coordinate (parallel to the
-    fold line) is held constant throughout.
+    of radius `|radius|` in the plane of the fold axis.
+
+
 
     Wrist (joint 5) rotates by π / n_steps at each step so the gripper stays
     parallel to the paper throughout the fold.
 
-    Sequence per step: rotate wrist → moveL to next arc position.
+    Sequence per step: rotate wrist + moveL to next arc position blended together.
 
     Parameters
     ----------
     workspace : Workspace
     arm_side : {'left', 'right'}
-    radius : float
-         Signed distance from the gripped edge to the fold line = fold midpoint along ``axis``
-        (metres).  The sign controls fold direction: positive folds toward
-        +axis, negative folds toward −axis.  The magnitude is the arc radius.
-    axis : {'x', 'y'}
-        Direction in which we fold / direction the gripper travels during the fold.
-        The fold line (crease) runs perpendicular to this in the board plane:
-        'x' → folds along 'x' axis, created fold line is parallel to 'y'-axis; 
-        'y' → folds along 'y' axis, created fold line is parallel to 'x'-axis.
+        Which arm performs the fold.
+    end_pos : list[float, float, float]
+        World position of the gripped edge at the end of the fold (metres). This together with current arm position define the fold axis.
     n_steps : int
         Number of waypoints along the arc, including the end point.  More
         waypoints produce a smoother fold at the cost of longer execution

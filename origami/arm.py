@@ -212,6 +212,20 @@ class Arm:
         new_rotvec = compose_rotation_vectors(tcp[3:], [drx, dry, drz])
         return self.move_to_tcp(list(tcp[:3]) + new_rotvec.tolist(), speed, acceleration)
 
+    def rotate_absolute(self, rx: float, ry: float, rz: float,
+                        speed: float | None = None,
+                        acceleration: float | None = None) -> bool:
+        """Set the tool orientation to an absolute axis-angle rotation vector ``[rx, ry, rz]``.
+        Parameters
+        ----------
+        rx, ry, rz : float
+            Components of the absolute axis-angle rotation vector (radians).
+        speed, acceleration : float or None
+            Override config defaults.
+        """
+        tcp = self.current_tcp_pose()
+        return self.move_to_tcp(list(tcp[:3]) + [rx, ry, rz], speed, acceleration)
+    
     # ------------------------------------------------------------------ #
     # Motion — world frame
     # ------------------------------------------------------------------ #
