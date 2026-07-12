@@ -339,7 +339,7 @@ def unfold_arc(
 
 # afterwards move this out to a crease tool method?
 def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_angle: float,
-               arm: str = "right") -> None:
+               arm: str = "left") -> None:
     """Grip the creaser tool by approaching horizontally from outside.
 
     Transits to the approach point at clearance height, reorients the tooltip
@@ -368,19 +368,20 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
 
-    approach_dir = ToolOrientation.closest_base_axis([math.cos(grip_angle), math.sin(grip_angle), 0])
-    sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
+    # rotate the gripper to point right and flat (so it can grip the creaser tool)
+    right_rotvec = ToolOrientation.from_labels(tooltip="right", gripper="inward").to_rot_vec()
+    a.rotate_absolute(*right_rotvec)
 
     # Step 2: reorient to sideways at clearance height.
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
     # Step 3: descend to grip height.
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, z_start)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, z_start))
     a.goto(config.CREASER_GRIP_OPEN_POS)
     # Slide horizontally in to grip point.
-    a.move_to_tcp(a.world_to_tcp(x, y, z)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x, y, z))
     a.grip()
-    a.move_offset_world(-0.07, 0, 0) # move up and back a bit to lift up the creaser tool
-    a.move_offset_world(0, 0, 0.05) # move up and back a bit to lift up the creaser tool
+    a.move_offset_world(-0.07, 0, 0) # move back a bit to remove the creaser tool from the holder
+    a.move_offset_world(0, 0, 0.05) # move up a bit to lift up the creaser tool from the platform
     a.go_home()
 
 def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip_angle: float,
@@ -413,17 +414,17 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
 
-    approach_dir = ToolOrientation.closest_base_axis([math.cos(grip_angle), math.sin(grip_angle), 0])
-    sideways_rotvec = ToolOrientation.point_axis_to(a.current_tcp_pose(), 'z', approach_dir, 'y').to_rot_vec()
+    right_rotvec = ToolOrientation.from_labels(tooltip="right", gripper="outward").to_rot_vec()
+    a.rotate_absolute(*right_rotvec)
 
     # Step 2: reorient to sideways at clearance height.
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
     # Step 3: descend to grip height.
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, z_start)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, z_start))
     # Slide horizontally in to the paper edge.
-    a.move_to_tcp(a.world_to_tcp(x, y, z)[:3] + sideways_rotvec)
+    a.move_to_tcp(a.world_to_tcp(x, y, z))
     a.goto(config.CREASER_GRIP_OPEN_POS, blocking=True)
-    a.move_offset_world(-0.1, 0, 0) # move up and back a bit to lift up the creaser tool
+    a.move_offset_world(-0.1, 0, 0) # move back a bit to put down the creaser tool properly
     a.grip()
     a.go_home()
 
