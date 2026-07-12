@@ -321,20 +321,18 @@ def fold_arc(
         x, y, z, rx, ry, rz = float(x), float(y), float(z), float(rx), float(ry), float(rz)
         poses.append([x, y, z, rx, ry, rz])
 
-    arm.backend.move_linear_poses(poses, speed=0.1, acceleration=0.1)
+    arm.backend.move_linear_poses(poses, speed=0.5, acceleration=0.5)
+    return poses
 
 def unfold_arc(
     workspace: Workspace,
     arm_side: str,
-    offsets: list[list[float,float,float]]
+    poses: list[list[float,float,float,float,float,float]]
 ) -> None:
     """Unfold paper by sweeping the gripped edge through a circular arc about a fold line.
     """
     arm = workspace.arm(arm_side)
-    angle = math.pi/len(offsets)
-    for offset in offsets[::-1]: # reverse the offsets to unfold
-        arm.rotate_joint(5, -angle)
-        arm.move_offset_world(*[-coord for coord in offset])
+    arm.backend.move_linear_poses(poses[::-1], speed=0.5, acceleration=0.5)
     
 
 # afterwards move this out to a crease tool method?

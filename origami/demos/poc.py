@@ -122,7 +122,7 @@ def main() -> None:
     # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
     end_pos = list(ws.right.current_world_pos())
     end_pos[0] += 2*9.5/100
-    offsets = actions.fold_arc(
+    poses = actions.fold_arc(
         ws,
         arm_side="right",
         end_pos=end_pos,
@@ -162,8 +162,9 @@ def main() -> None:
     actions.unfold_arc(
         ws,
         arm_side="right",
-        offsets=offsets
+        poses=poses
     )
+
     ws.arm(side='right').release()
     ws.arm(side='right').move_offset_world(0,-2/100,0)
     ws.arm(side='right').go_home()
@@ -176,11 +177,30 @@ def main() -> None:
     actions.remove_magnet(ws, 'block_b', carrying_arm="left")
     ws.arm(side='left').go_home()
 
+    actions.grip_paper(
+        workspace=ws, 
+        x=config.BOARD_WIDTH/2,  # approach from just beyond the left edge of the paper
+        y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
+        grip_angle=0,
+        arm="right"
+    )
+
     # ---------------------------------------------------------------------------
     # Step 9 — flip paper over
     # ---------------------------------------------------------------------------
     print("[Step 9] flip paper over")
     actions.flip_paper(workspace=ws, arm="right")
+
+    ws.arm(side='right').release()
+    ws.arm(side='right').move_offset_world(0,-2/100,0)
+    ws.arm(side='right').go_home()
+
+    # place magnets for corner fold
+    actions.place_magnet(ws, block_a, x=0.275, y=0.14, carrying_arm="left")
+    actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
+    ws.arm(side='left').go_home()
+
+
     # ---------------------------------------------------------------------------
     # Step 10 — grab paper for second fold — grip right paper edge
     # ---------------------------------------------------------------------------
@@ -204,7 +224,7 @@ def main() -> None:
     end_pos = list(ws.right.current_world_pos())
     end_pos[0] -= 9/100
     end_pos[1] += 9/100
-    offsets = actions.fold_arc(
+    actions.fold_arc(
         ws,
         arm_side="right",
         end_pos=end_pos,
@@ -212,10 +232,15 @@ def main() -> None:
         fold_percent=5/8
     )
 
-    ws.arm(side='right').release()
-    ws.arm(side='right').move_offset_world(0,-2/100,0)
+    actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+5/100, y=2/100, carrying_arm="left")
+    ws.arm(side='left').go_home()
+
+
+    ws.arm(side='right').goto(0.65)
+    ws.arm(side='right').move_offset_world(0, 0, 5/100)
     ws.arm(side='right').go_home()
 
+    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
 
     print(f"\n{'=' * 60}")
     print("  Demo complete.")
