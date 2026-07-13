@@ -152,6 +152,9 @@ def remove_magnet(workspace: Workspace, identifier: str,
     """
     arm = workspace.arm(carrying_arm)
     magnet = workspace.magnets.get(identifier)
+    if not magnet.placed:
+        print(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to remove while not placed. Ignoring command.")
+        return
     handle = magnet.handle_xy
 
     _grip_magnet_at(arm, float(handle[0]), float(handle[1]), magnet.grip_height)
@@ -270,7 +273,7 @@ def fold_arc(
 
     Call this immediately after `grip_paper`; the arm's current position is
     taken as the arc start point.  The gripper sweeps through a true semicircle
-    of radius `|radius|` in the plane of the fold axis.
+    of radius `||arm.current_world_pos() - end_pos||/2` in the plane of the fold axis.
 
 
 

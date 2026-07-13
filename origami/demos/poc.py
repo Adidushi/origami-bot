@@ -241,8 +241,50 @@ def main() -> None:
     ws.arm(side='right').goto(0.65)
     ws.arm(side='right').move_offset_world(0, 0, 5/100)
     ws.arm(side='right').go_home()
-
     actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
+
+
+    # ---------------------------------------------------------------------------
+    # Step 12 — grab paper for third fold — grip bottom-left paper edge
+    # ---------------------------------------------------------------------------
+    print("[Step 12] grab paper for third fold — grip bottom-left paper edge")
+    # Grip the paper edge with the right arm (sideways horizontal approach)
+    actions.grip_paper(
+        workspace=ws, 
+        x=paper_bottom_left_corner_x + 1/100,  # approach from just beyond the left edge of the paper
+        y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
+        grip_angle= math.pi / 4,
+        arm="right"
+    )
+
+    # ---------------------------------------------------------------------------
+    # Step 13 — fold paper from bottom-left corner to middle
+    # ---------------------------------------------------------------------------
+    print("[Step 13] fold paper from bottom-left corner to middle")
+
+    # Fold axis at the board centre: folds the right half of the paper over.
+    # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
+    end_pos = list(ws.right.current_world_pos())
+    end_pos[0] += 9/100
+    end_pos[1] += 9/100
+    actions.fold_arc(
+        ws,
+        arm_side="right",
+        end_pos=end_pos,
+        n_steps=8,
+        fold_percent=5/8
+    )
+
+    # # place the corner folding magnet (long boy)
+    # actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+5/100, y=2/100, carrying_arm="left")
+    # ws.arm(side='left').go_home()
+
+    # Open the hand, release the paper and go home (post-fold)
+    ws.arm(side='right').goto(0.65)
+    ws.arm(side='right').move_offset_world(0, 0, 5/100)
+    ws.arm(side='right').go_home()
+    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
+
 
     print(f"\n{'=' * 60}")
     print("  Demo complete.")
