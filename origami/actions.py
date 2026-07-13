@@ -427,7 +427,9 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
     a.go_home()
 
 
-
+# TODO: Make crease function generic similar to fold arc
+# given two points drops onto the first and creases to the second
+# holding the creaser perpendicular to the movement direction
 def crease(
     workspace: Workspace,
     arm_side: str,

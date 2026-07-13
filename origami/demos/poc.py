@@ -191,6 +191,7 @@ def main() -> None:
     print("[Step 9] flip paper over")
     actions.flip_paper(workspace=ws, arm="right")
 
+    # let go of paper, move back and go home
     ws.arm(side='right').release()
     ws.arm(side='right').move_offset_world(0,-2/100,0)
     ws.arm(side='right').go_home()
@@ -232,10 +233,11 @@ def main() -> None:
         fold_percent=5/8
     )
 
+    # place the corner folding magnet (long boy)
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+5/100, y=2/100, carrying_arm="left")
     ws.arm(side='left').go_home()
 
-
+    # Open the hand, release the paper and go home (post-fold)
     ws.arm(side='right').goto(0.65)
     ws.arm(side='right').move_offset_world(0, 0, 5/100)
     ws.arm(side='right').go_home()
