@@ -71,7 +71,15 @@ def _grip_magnet_at(arm, x: float, y: float, z: float) -> None:
 
 
 def _release_magnet_at(arm, x: float, y: float, z: float) -> None:
-    """Carry to board position, descend to release height, open, retreat."""
+    """Carry to the magnet grip point, descend to release height, open, retreat.
+    Parameters
+    ----------
+    arm : Arm
+        Arm to use for the release.
+    x, y, z : float
+        World coordinates of the magnet grip point (metres).
+    """
+
     clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance)
     arm.move_to_world(x, y, z)
@@ -103,14 +111,14 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     arm = workspace.arm(carrying_arm)
 
     if magnet.tray_position is not None:
-        pick = np.asarray(magnet.handle_xy, dtype=float)
-        _grip_magnet_at(arm, float(pick[0]), float(pick[1]),
+        pick_up_point = np.asarray(magnet.get_grip_xy(), dtype=float)
+        _grip_magnet_at(arm, float(pick_up_point[0]), float(pick_up_point[1]),
                         float(magnet.tray_position[2]) + magnet.grip_height)
 
-    # update x and y so handle_xy is calculated correctly for the new position of the magnet
-    magnet.place_at(x, y, orientation)
-    handle_x, handle_y = magnet.handle_xy
-    _release_magnet_at(arm, handle_x, handle_y, magnet.grip_height)
+    # update the magnet state first so its derived grip point reflects the new anchor,
+    # then extract that updated grip point for the release move
+    grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
+    _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height)
     if magnet.identifier not in workspace.magnets:
         workspace.magnets.add(magnet)
 
@@ -132,9 +140,9 @@ def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     """
     arm = workspace.arm(carrying_arm)
     magnet = workspace.magnets.get(identifier)
-    handle = magnet.handle_xy
+    grip = magnet.get_grip_xy()
 
-    _grip_magnet_at(arm, float(handle[0]), float(handle[1]), magnet.grip_height)
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
     _release_magnet_at(arm, x, y, magnet.grip_height)
     magnet.place_at(x, y, orientation)
 
@@ -155,14 +163,15 @@ def remove_magnet(workspace: Workspace, identifier: str,
     if not magnet.placed:
         print(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to remove while not placed. Ignoring command.")
         return
-    handle = magnet.handle_xy
+    grip = magnet.get_grip_xy()
 
-    _grip_magnet_at(arm, float(handle[0]), float(handle[1]), magnet.grip_height)
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
 
-    magnet.stow() # Update the magnet's state to reflect that it's stowed away back in the tray
+    # update the magnet state first so its derived grip point reflects the tray position,
+    # then extract that updated grip point for the release move
+    home = magnet.stow().get_grip_xy()
 
     if magnet.tray_position is not None:
-        home = magnet.handle_xy
         _release_magnet_at(arm, float(home[0]), float(home[1]),
                            float(magnet.tray_position[2]) + magnet.grip_height)
     else:

@@ -138,7 +138,7 @@ def test_magnet_place_move_remove(ws: Workspace) -> None:
         handle_height=0.015,
         tray_position=(-0.15, 0.05, -0.02),
     )
-    lbracket = BlockMagnet(
+    lbracket = LBracketMagnet(
         identifier="lbracket_a",
         handle_height=0.015,
         tray_position=(-0.15, 0.15, -0.02),
@@ -147,7 +147,7 @@ def test_magnet_place_move_remove(ws: Workspace) -> None:
     # Place block
     actions.place_magnet(ws, block, x=0.10, y=0.10, carrying_arm="left")
     check(block.placed, "block magnet marked as placed")
-    info("block centre", block.center.tolist())
+    info("block anchor", block.get_anchor_xy().tolist())
     check("block_a" in ws.magnets, "block registered in workspace")
 
     # Place L-bracket
@@ -157,8 +157,8 @@ def test_magnet_place_move_remove(ws: Workspace) -> None:
 
     # Move block to new position
     actions.move_magnet(ws, "block_a", x=0.15, y=0.15, carrying_arm="left")
-    check(np.allclose(block.center, [0.15, 0.15]),
-          f"block centre updated to (0.15, 0.15), got {block.center.tolist()}")
+    check(np.allclose(block.get_anchor_xy(), [0.15, 0.15]),
+          f"block anchor updated to (0.15, 0.15), got {block.get_anchor_xy().tolist()}")
 
     # Remove block → tray
     actions.remove_magnet(ws, "block_a", carrying_arm="left")
