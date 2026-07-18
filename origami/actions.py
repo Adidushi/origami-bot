@@ -33,11 +33,10 @@ import math
 import numpy as np
 
 from origami import config
-from origami.rotation import ToolOrientation
 
 from .magnets import Magnet
 from .workspace import Workspace
-from .rotation import compose_rotation_vectors
+from .rotation import ArmOrientation, TooltipDirection, GripperOrientation, compose_rotation_vectors
 
 # ---------------------------------------------------------------------------
 # Physical constants
@@ -217,12 +216,21 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
 
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
-    forward_rotvec = ToolOrientation.from_labels(tooltip="forward", gripper="flat").to_rot_vec()
+
     # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
+    # forward_rotvec = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT).to_rot_vec()
+    forward_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT)
+
+
     # rotate the gripper to point in the direction of the grip angle so that it can approach the paper edge at the correct angle
-    forward_rotated_rotvec = compose_rotation_vectors(forward_rotvec, [0, 0, grip_angle])
-    a.rotate_absolute(forward_rotated_rotvec)
+    # grip_angle_oriented_rotvec = compose_rotation_vectors(forward_rotvec, [0, 0, grip_angle])
+    # a.rotate_absolute(grip_angle_oriented_rotvec)
     
+    # based on right hand rule since tooltip (index finger) = forward (-x base dir), gripper (middle finger)=flat (in this case pointing left = +y base dir) then rotation axis/thumb = +z base dir with
+    # positive rotation angle being left, so in rotvec case pos degree is to the left so we do the same here.
+    grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, degrees=math.degrees(grip_angle))
+    a.rotate_absolute(grip_angle_oriented_orientation)
+
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
     a.goto(.5) # open the gripper to prepare to grip the paper
     # Slide horizontally in to the paper edge.
@@ -231,36 +239,38 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
 
 def flip_paper(workspace: Workspace,
                arm: str = "right") -> None:
-    """Flip the paper held in the gripper by rotating the wrist joint 180°.
-
-    Lifts the arm to clearance, reorients the tooltip straight down, rotates
-    wrist joint 5 by π radians, then reorients the tooltip forward to leave
-    the arm in a sideways approach posture.
+    """Flip the paper **currently held in the gripper** by 180° 
+    
+    This function lifts the arm up to safe clearance height, reorients the arm/tooltip to point straight down (in order to avoid 
+    gravity deforming the paper while we flip it / causing it to fold down into itself weirdly) and rotates wrist 3 / the wrist joint (gripper) 
+    by 180° before finally reorienting the arm back to horizontal/sideways approach orientation - with the gripper orientation preserved
+    from the previous step (rotating wrist joint) in order for paper to remain flipped 
 
     Parameters
     ----------
     workspace : Workspace
     arm : {'left', 'right'}, optional
-        Which arm performs the flip.  Default ``'right'``.
+        Which arm currently grips the paper and performs the flip.  Default ``'right'``.
     """
 
     a = workspace.arm(arm)
-    # move arm out of the way for flipping
+    # lift arm holding paper to clearance height in order to allow tilting arm down
     a.move_offset_world(0, 0, config.FLIP_PAPER_CLEARANCE)
 
     current_tcp = a.current_tcp_pose()
-    tool_down = ToolOrientation.point_tooltip_preserve_gripper_orientation(current_tcp, "down")
-    tool_down_rot_vec = tool_down.to_rot_vec()
-    new_tcp = current_tcp[:3] + tool_down_rot_vec
-    print(f"tool_down_rot_vec: {tool_down_rot_vec}")
-    print(f"type(tool_down_rot_vec): {type(tool_down_rot_vec)}")
-    a.move_to_tcp(new_tcp)
-    a.rotate_joint(5, math.pi) # rotate the wrist joint by 180 degrees to flip the paper
-    current_tcp = a.current_tcp_pose()
-    tool_up_same_gripper_orientation = ToolOrientation.point_tooltip_preserve_gripper_orientation(current_tcp, "forward")
-    print(f"tool_up_same_gripper_orientation: {tool_up_same_gripper_orientation}")
-    new_tcp = new_tcp[:3] + tool_up_same_gripper_orientation.to_rot_vec()
-    a.move_to_tcp(new_tcp)
+
+    # rotate the arm to point downwards (so that gravity doesn't deform the paper while we flip it)
+    point_down = ArmOrientation.from_tcp_pose(current_tcp).tooltip_direction(TooltipDirection.DOWN)
+    a.rotate_absolute(point_down)
+
+    # now that the arm is pointing downwards, we can rotate the wrist joint to flip the paper
+    rotate_wrist = point_down.rotate_gripper(180)
+    a.rotate_absolute(rotate_wrist) # rotate the wrist joint by 180 degrees to flip the paper
+    #a.rotate_joint(5, math.pi) # rotate the wrist joint by 180 degrees to flip the paper
+
+    # now that the paper is flipped, we can reorient the arm back to horizontal/sideways approach orientation - with the gripper orientation preserved from the previous step (rotating wrist joint) in order for paper to remain flipped
+    point_forwards = rotate_wrist.tooltip_direction(TooltipDirection.FORWARD)
+    a.rotate_absolute(point_forwards)
 
     # put the paper back
     a.move_offset_world(0, 0, -config.FLIP_PAPER_CLEARANCE)
@@ -379,8 +389,8 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
     a.move_to_clearance(x_start, y_start)
 
     # rotate the gripper to point right and flat (so it can grip the creaser tool)
-    right_rotvec = ToolOrientation.from_labels(tooltip="right", gripper="inward").to_rot_vec()
-    a.rotate_absolute(right_rotvec)
+    right_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.RIGHT, gripper_orientation=GripperOrientation.FLAT).to_rot_vec()
+    a.rotate_absolute(right_orientation)
 
     # Step 2: reorient to sideways at clearance height.
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
@@ -424,8 +434,8 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
 
-    right_rotvec = ToolOrientation.from_labels(tooltip="right", gripper="outward").to_rot_vec()
-    a.rotate_absolute(right_rotvec)
+    right_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.RIGHT, gripper_orientation=GripperOrientation.FLAT).to_rot_vec()
+    a.rotate_absolute(right_orientation)
 
     # Step 2: reorient to sideways at clearance height.
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
