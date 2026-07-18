@@ -46,7 +46,7 @@ from dataclasses import dataclass
 from . import backends as backends_mod
 from .backends import ArmBackend, GripperBackend
 from .coords import ArmCalibration
-from .rotation import compose_rotation_vectors
+from .rotation import compose_rotation_vectors, ArmOrientation
 
 
 @dataclass
@@ -190,21 +190,25 @@ class Arm:
         acc = acceleration or self.config.acceleration
         return self.backend.move_joint_space(pose, spd, acc)
 
-    def rotate_relative(self, drx: float, dry: float, drz: float,
+
+    # ------------------------------------------------------------------ #
+    # Motion — relative/absolute rotation
+    # ------------------------------------------------------------------ #
+    def _rotate_relative_rotvec(self, drx: float, dry: float, drz: float,
                         speed: float | None = None,
                         acceleration: float | None = None) -> bool:
         """Apply a relative rotation to the tool, keeping its position fixed.
 
-        The delta is an axis-angle rotation vector ``[drx, dry, drz]`` expressed
+        The delta ``[drx, dry, drz]`` is a rotation vector expressed
         in the arm's base frame (direction = rotation axis, magnitude = rotation
         angle in radians).  It is composed with the current tool orientation
-        using Rodrigues' axis-angle composition formula, so the resulting
+        using Rodrigues' rotation vector composition formula, so the resulting
         rotation equals ``R_delta @ R_current``.
 
         Parameters
         ----------
         drx, dry, drz : float
-            Components of the relative axis-angle rotation vector (radians).
+            Components of the relative rotation vector (in radians).
         speed, acceleration : float or None
             Override config defaults.
         """
@@ -212,20 +216,111 @@ class Arm:
         new_rotvec = compose_rotation_vectors(tcp[3:], [drx, dry, drz])
         return self.move_to_tcp(list(tcp[:3]) + new_rotvec.tolist(), speed, acceleration)
 
-    def rotate_absolute(self, rx: float, ry: float, rz: float,
+    def _rotate_absolute_rotvec(self, rx: float, ry: float, rz: float,
                         speed: float | None = None,
                         acceleration: float | None = None) -> bool:
-        """Set the tool orientation to an absolute axis-angle rotation vector ``[rx, ry, rz]``.
+        """Set the tool orientation to an absolute rotation vector ``[rx, ry, rz]``.
         Parameters
         ----------
         rx, ry, rz : float
-            Components of the absolute axis-angle rotation vector (radians).
+            Components of the absolute rotation vector (radians).
         speed, acceleration : float or None
             Override config defaults.
         """
         tcp = self.current_tcp_pose()
         return self.move_to_tcp(list(tcp[:3]) + [rx, ry, rz], speed, acceleration)
-    
+
+    def _rotate_relative_arm_orientation(self, orientation: ArmOrientation,
+                        speed: float | None = None,
+                        acceleration: float | None = None) -> bool:
+        """Rotate the tool by an ``ArmOrientation`` composed onto its current orientation.
+
+        - This operation keeps the tools x,y,z **position** fixed.
+        - The rotation is applied on top of the arm/tool's current orientation (i.e. composition of the two: ``R_orientation @ R_current``), 
+        in other words it is applied relative to where the tool currently points.
+
+        
+
+        Parameters
+        ----------
+        orientation : ArmOrientation
+            The rotation to compose onto the current orientation.
+        speed, acceleration : float or None
+            Override the config defaults.
+        """
+        tcp = self.current_tcp_pose()
+        new_rotvec = compose_rotation_vectors(tcp[3:], orientation.to_rotation_vector())
+        return self.move_to_tcp(list(tcp[:3]) + new_rotvec.tolist(), speed, acceleration)
+
+    def _rotate_absolute_arm_orientation(self, orientation: ArmOrientation,
+                        speed: float | None = None,
+                        acceleration: float | None = None) -> bool:
+        """Set the tool directly to an ``ArmOrientation``
+
+        - This operation keeps the tools x,y,z **position** fixed.
+        - The orientation is applied as-is with respect to the base frame, overwriting the current tool orientation.
+
+        Parameters
+        ----------
+        orientation : ArmOrientation
+            The target orientation.
+        speed, acceleration : float or None
+            Override the config defaults.
+
+        Returns
+        -------
+        bool
+            Whether the move executed successfully.
+        """
+        tcp = self.current_tcp_pose()
+        return self.move_to_tcp(
+            list(tcp[:3]) + orientation.to_rotation_vector(), speed, acceleration)
+
+    def rotate_relative(self, rotation: tuple[float, float, float] | ArmOrientation,
+                        speed: float | None = None,
+                        acceleration: float | None = None) -> bool:
+        """Rotate the tool relative to its current orientation.
+
+        - This operation keeps the tools x,y,z **position** fixed.
+        - The rotation is applied on top of the arm/tool's current orientation (i.e. composition of the two: ``R_orientation @ R_current``),
+        in other words it is applied relative to where the tool currently points.
+        - The rotation is given with respect to the base frame, either as a rotation vector ``(drx, dry, drz)``
+        or as an ``ArmOrientation``.
+
+        Parameters
+        ----------
+        rotation : (float, float, float) or ArmOrientation
+            The relative rotation: a rotation vector ``(drx, dry, drz)``, or an ``ArmOrientation``.
+        speed, acceleration : float or None
+            Override the config defaults.
+
+        """
+        if isinstance(rotation, ArmOrientation):
+            return self._rotate_relative_arm_orientation(rotation, speed, acceleration)
+        return self._rotate_relative_rotvec(*rotation, speed=speed, acceleration=acceleration)
+
+    def rotate_absolute(self, rotation: tuple[float, float, float] | ArmOrientation,
+                        speed: float | None = None,
+                        acceleration: float | None = None) -> bool:
+        """Rotate the tool to an absolute orientation.
+
+        - This operation keeps the tools x,y,z **position** fixed.
+        - The orientation is applied as-is with respect to the base frame, overwriting the current tool orientation.
+        - The rotation is given either as a rotation vector ``(rx, ry, rz)`` or as an
+          ``ArmOrientation``.
+
+
+        Parameters
+        ----------
+        rotation : (float, float, float) or ArmOrientation
+            The absolute target orientation: a rotation vector ``(rx, ry, rz)``, or an ``ArmOrientation``.
+        speed, acceleration : float or None
+            Override the config defaults.
+        """
+        if isinstance(rotation, ArmOrientation):
+            return self._rotate_absolute_arm_orientation(rotation, speed, acceleration)
+        return self._rotate_absolute_rotvec(*rotation, speed=speed, acceleration=acceleration)
+
     # ------------------------------------------------------------------ #
     # Motion — world frame
     # ------------------------------------------------------------------ #

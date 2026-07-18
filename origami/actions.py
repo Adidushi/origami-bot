@@ -221,7 +221,7 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
     # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
     # rotate the gripper to point in the direction of the grip angle so that it can approach the paper edge at the correct angle
     forward_rotated_rotvec = compose_rotation_vectors(forward_rotvec, [0, 0, grip_angle])
-    a.rotate_absolute(*forward_rotated_rotvec) 
+    a.rotate_absolute(forward_rotated_rotvec)
     
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
     a.goto(.5) # open the gripper to prepare to grip the paper
@@ -380,7 +380,7 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
 
     # rotate the gripper to point right and flat (so it can grip the creaser tool)
     right_rotvec = ToolOrientation.from_labels(tooltip="right", gripper="inward").to_rot_vec()
-    a.rotate_absolute(*right_rotvec)
+    a.rotate_absolute(right_rotvec)
 
     # Step 2: reorient to sideways at clearance height.
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
@@ -425,7 +425,7 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
     a.move_to_clearance(x_start, y_start)
 
     right_rotvec = ToolOrientation.from_labels(tooltip="right", gripper="outward").to_rot_vec()
-    a.rotate_absolute(*right_rotvec)
+    a.rotate_absolute(right_rotvec)
 
     # Step 2: reorient to sideways at clearance height.
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, a.config.clearance_z))
