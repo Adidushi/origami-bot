@@ -2,7 +2,7 @@
 
 World space is centred on the board: x/y across the surface, z = height above
 it (z=0 is the board surface).  `ArmCalibration` converts world targets into
-the arm's own base-frame TCP poses so the robot executes them correctly.
+the relevant arm's own base-frame TCP poses so the robot executes them correctly.
 
 All Cartesian motion uses linear interpolation (moveL).  Explicit joint-space
 control is available only through `move_to_joints` and `rotate_joint`.
@@ -13,17 +13,24 @@ State
     current_tcp_pose()      raw [x,y,z,rx,ry,rz] in the arm base frame
     current_world_pos()     (x, y, z) in world space
     get_tool_pos()          (x, y, z) in world space (alias for current_world_pos)
+    get_joint_angles()      current joint angles [j0..j5]
+    is_async_running()      whether an async operation is in progress
 
 Motion — arm (TCP) frame
     move_to_tcp(pose)            move to a raw TCP pose via moveL
-
+    movej_to_tcp(pose)           move to a raw TCP pose via moveJ_IK (joint space)
+    
 Motion — world frame
-    move_to_world(x,y,z)         move to world position via moveL
-    move_offset_world(dx,dy,dz)  relative move in world space via moveL
-    move_up(d) / move_down(d)    vertical offsets in world z via moveL
+    move_to_world(x,y,z)         move to absolute world position via moveL
+    move_offset_world(dx,dy,dz)  move relative to current position in world space via moveL
+
+Motion — relative/absolute rotation (rotation is a rotvec (rx,ry,rz) or an ArmOrientation)
+    rotate_relative(rotation)    rotate relative to current orientation (composition of the two), position fixed 
+    rotate_absolute(rotation)    set the tool orientation to an absolute orientation, position fixed      
 
 Gripper
-    grip() / release()
+    grip() / release()           close / open the gripper
+    goto(percentage)             set gripper opening (0 = open, 1 = closed)
 
 Joint control
     move_to_joints(angles)        move to absolute joint angles
@@ -37,6 +44,7 @@ Convenience moves
     move_to_clearance(x,y)  linear transit to safe height above (x,y)
     press(x,y)              linear descent onto board surface at (x,y)
     lift()                  linear rise to clearance from current (x,y)
+    go_home()               move to the home joint configuration
 """
 from __future__ import annotations
 
@@ -350,14 +358,6 @@ class Arm:
         x, y, z = self.tcp_to_world(tcp)
         new_xyz = self.calibration.world_to_arm_xyz(x + dx, y + dy, z + dz)
         return self.move_to_tcp(list(new_xyz) + list(tcp[3:]))
-
-    def move_up(self, distance: float) -> bool:
-        """Rise ``distance`` metres in world z from the current position."""
-        return self.move_offset_world(0.0, 0.0, distance)
-
-    def move_down(self, distance: float) -> bool:
-        """Descend ``distance`` metres in world z from the current position."""
-        return self.move_offset_world(0.0, 0.0, -distance)
 
     # ------------------------------------------------------------------ #
     # Gripper
