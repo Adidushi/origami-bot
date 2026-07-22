@@ -596,11 +596,11 @@ class ArmOrientation:
 
     # -- conversion ----------------------------------------------------------
 
-    def to_rotation_matrix(self) -> np.ndarray:
+    def to_matrix(self) -> np.ndarray:
         """The 3x3 rotation matrix (columns = tool x, y, z in the base frame)."""
         return self._matrix.copy()
 
-    def to_rotation_vector(self) -> list[float]:
+    def to_rotvec(self) -> list[float]:
         """The rotation vector ``[rx, ry, rz]`` for a TCP pose."""
         return rot_matrix_to_rot_vec(self._matrix).tolist()
 
@@ -618,6 +618,6 @@ class ArmOrientation:
         return np.allclose(self._matrix, other._matrix)
 
     def __repr__(self) -> str:
-        rx, ry, rz = self.to_rotation_vector()
+        rx, ry, rz = self.to_rotvec()
         matrix = np.array2string(self._matrix, precision=3, suppress_small=True)
         return f"ArmOrientation(rotvec=[{rx:.3f}, {ry:.3f}, {rz:.3f}], matrix=\n{matrix})"

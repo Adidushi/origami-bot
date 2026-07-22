@@ -218,7 +218,7 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
     a.move_to_clearance(x_start, y_start)
 
     # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
-    # forward_rotvec = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT).to_rot_vec()
+    # forward_rotvec = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT).to_rotvec()
     forward_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT)
 
 
@@ -324,7 +324,7 @@ def fold_arc(
     rotation_vector = np.cross([x2 - x1, y2 - y1, 0], [0, 0, 1])
     rotation_vector /= np.linalg.norm(rotation_vector)
 
-    poses = list()
+    poses = [arm.current_tcp_pose()]
     for i in range(1, n_steps+1):
         # calculate x, y, z on half-circle
         theta = math.pi * i / n_steps
@@ -389,7 +389,7 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
     a.move_to_clearance(x_start, y_start)
 
     # rotate the gripper to point right and flat (so it can grip the creaser tool)
-    right_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.RIGHT, gripper_orientation=GripperOrientation.FLAT).to_rot_vec()
+    right_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.RIGHT, gripper_orientation=GripperOrientation.FLAT).to_rotvec()
     a.rotate_absolute(right_orientation)
 
     # Step 2: reorient to sideways at clearance height.
@@ -434,7 +434,7 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
     # Step 1: transit to approach start, preserving current orientation.
     a.move_to_clearance(x_start, y_start)
 
-    right_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.RIGHT, gripper_orientation=GripperOrientation.FLAT).to_rot_vec()
+    right_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.RIGHT, gripper_orientation=GripperOrientation.FLAT).to_rotvec()
     a.rotate_absolute(right_orientation)
 
     # Step 2: reorient to sideways at clearance height.

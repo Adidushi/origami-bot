@@ -257,7 +257,7 @@ class Arm:
             Override the config defaults.
         """
         tcp = self.current_tcp_pose()
-        new_rotvec = compose_rotation_vectors(tcp[3:], orientation.to_rotation_vector())
+        new_rotvec = compose_rotation_vectors(tcp[3:], orientation.to_rotvec())
         return self.move_to_tcp(list(tcp[:3]) + new_rotvec.tolist(), speed, acceleration)
 
     def _rotate_absolute_arm_orientation(self, orientation: ArmOrientation,
@@ -282,7 +282,7 @@ class Arm:
         """
         tcp = self.current_tcp_pose()
         return self.move_to_tcp(
-            list(tcp[:3]) + orientation.to_rotation_vector(), speed, acceleration)
+            list(tcp[:3]) + orientation.to_rotvec(), speed, acceleration)
 
     def rotate_relative(self, rotation: tuple[float, float, float] | ArmOrientation,
                         speed: float | None = None,
