@@ -1,21 +1,29 @@
 """Magnet state model.
 
 The rig uses 3D-printed magnet holders on a magnetic board as extra "joints" that
-pin or weigh down paper while the arms work.  Each physical magnet is tracked
+pin or weigh down paper while the arms work. Each physical magnet is tracked
 here with its board pose and type-specific geometry, so the high-level actions
 can reason about what is currently holding the paper and exactly where (and at
 what height) an arm must grip to move it.
 
+The model uses two different 2D positions:
+
+* ``anchor_xy`` -- the board-contact point that defines where the magnet itself is
+    placed (what actually holds down our paper).
+* ``grip_xy`` -- the point (handle position) the robot actually grasps. For some magnets this is
+    the same as ``anchor_xy``; for others it is offset from the anchor because the handle is offset 
+    from the anchor/contact point.
+
 Two holder types are modelled:
 
-* `BlockMagnet` -- a weight block with a holder; gripped directly above
-  its centre.
-* `LBracketMagnet` -- an L-shaped bracket whose magnetic foot sits on the
-  board (and can act as a fold hinge) while its handle stands off to one side at
-  a raised height, which is where the gripper actually grabs it.
+* ``BlockMagnet`` -- a weight block with a holder; gripped directly above its
+    anchor.
+* ``LBracketMagnet`` -- an L-shaped bracket whose board anchor sits on the
+    board (and can act as a fold hinge) while its handle stands off to one side at
+    a raised height, which is where the gripper actually grabs it.
 
 Positions use the world coordinate frame (x, y on the board surface, z = height
-above board).  When a magnet is placed on the board its foot sits at z = 0.
+above board). When a magnet is placed on the board its anchor sits at z = 0.
 Tray positions may have z ≠ 0 because trays can be at a different height.
 """
 from __future__ import annotations
@@ -35,10 +43,10 @@ class Magnet:
     ----------
     identifier : str
         Unique name for this physical magnet.
-    center : array_like, shape (2,), optional
-        World (x, y) of the magnet's contact footprint.  For an `LBracketMagnet`
-        this is the magnetic foot; for a `BlockMagnet` it is the block centre.
-        Default ``(0, 0)``.  The z of the foot is implied by context: z = 0
+    anchor_xy : array_like, shape (2,), optional
+        World (x, y) of the board-contact point that defines where the magnet itself is
+    placed (what actually holds down our paper)
+        Default ``(0, 0)``.  The z of the anchor is implied by context: z = 0
         when placed on the board, ``tray_position[2]`` when stowed.
     orientation : float, optional
         Yaw of the magnet about the board normal, in radians.  Default ``0``.
@@ -48,7 +56,7 @@ class Magnet:
     tray_position : tuple (x, y, z) or None, optional
         World position of the magnet's home / "graveyard" slot.  All three
         coordinates are stored because the tray may sit outside the board
-        footprint and at a different height from the board surface.
+        board area and at a different height from the board surface.
 
     Attributes
     ----------
@@ -57,7 +65,7 @@ class Magnet:
     """
 
     identifier: str
-    center: np.ndarray = field(default_factory=lambda: np.zeros(2))
+    anchor_xy: np.ndarray = field(default_factory=lambda: np.zeros(2))
     orientation: float = 0.0
     placed: bool = False
     tray_position: tuple[float, float, float] | None = None
@@ -65,90 +73,101 @@ class Magnet:
     kind: str = "generic"
 
     def __post_init__(self) -> None:
-        self.tray_position = np.asarray(self.tray_position, dtype=float).reshape(3)
-        self.center = np.asarray(self.tray_position[:2], dtype=float)
+            self.tray_position = np.asarray(self.tray_position, dtype=float).reshape(3)
+            self.anchor_xy = np.asarray(self.tray_position[:2], dtype=float)
 
     # -- geometry the arms need ----------------------------------------- #
-    @property
-    def handle_xy(self) -> np.ndarray:
-        """numpy.ndarray, shape (2,): World (x, y) of the grip handle.
-
-        For magnets gripped directly above their footprint this equals `center`.
-        Subclasses with a spatially separated handle (e.g. `LBracketMagnet`)
-        override this to return the actual handle location.
-        """
-        return self.center
-
-    @property
-    def grip_height(self) -> float:
-        """float: Height above the foot's surface (metres) at which to grip.
-
-        This is added to the foot's z to get the world grip z:
-        ``world_grip_z = foot_z + grip_height``.
-        Subclasses override with the true handle / holder height.
-        """
-        return 0.0
+    def get_anchor_xy(self) -> np.ndarray:
+        """numpy.ndarray, shape (2,): World (x, y) of the anchor point."""
+        return self.anchor_xy
 
     @property
     def grip_xy(self) -> np.ndarray:
-        """numpy.ndarray, shape (2,): Alias for `handle_xy`."""
-        return self.handle_xy
+        """numpy.ndarray, shape (2,): The robot grasp point (the magnet handle).
+
+        For some magnets this is the same as ``anchor_xy``; for others it is
+        offset from the anchor because the handle is offset from the anchor/contact point.
+        """
+        return self.get_anchor_xy()
+
+    def get_grip_xy(self) -> np.ndarray:
+        """numpy.ndarray, shape (2,): World (x, y) of the robot grasp point."""
+        return self.grip_xy
+
+    # -- geometry the arms need ----------------------------------------- #
+    @property
+    def grip_height(self) -> float:
+        """float: Height above the anchor's surface (metres) at which to grip.
+
+        This is added to the anchor's z to get the world grip z:
+        ``world_grip_z = anchor_z + grip_height``.
+        Subclasses override with the true grip / holder height.
+        """
+        return 0.0
 
     # -- state transitions ---------------------------------------------- #
     def place_at(self, x: float, y: float, orientation: float | None = None) -> "Magnet":
-        """Mark the magnet as placed on the board at (x, y).
+        """Update the magnet's board state so its derived grip point is correct.
+
+        This updates only ``anchor_xy`` and, if requested, the orientation,
+        then marks the magnet as placed. Callers can then query ``grip_xy`` (e.g. via chaining on this method) from the updated state in order 
+        to know where to actually move the arm to (in order to move the magnet), as that is the property the arm actually works with 
+        to interact with the magnet
 
         Parameters
         ----------
         x, y : float
-            Board position of the magnet foot (z = 0 implied).
+            Board position of the magnet anchor (contact point with the paper) (z = 0 implied).
         orientation : float or None, optional
             New yaw in radians; unchanged if ``None``.
 
         Returns
         -------
         Magnet
-            ``self``, for chaining.
+            ``self``, for method chaining.
         """
-        self.center = np.array([float(x), float(y)])
+        self.anchor_xy = np.array([float(x), float(y)])
         if orientation is not None:
             self.orientation = float(orientation)
         self.placed = True
         return self
 
     def stow(self) -> "Magnet":
-        """Mark the magnet as returned to its tray.
+        """Update the magnet's tray state so its derived grip point is correct.
 
-        If `tray_position` is set, the foot ``(x, y)`` is moved there.
+        This clears the ``placed`` flag and updates ``anchor_xy`` to the tray
+        position. Callers can then query ``grip_xy`` (e.g. via chaining on this method) from the updated state in order to 
+        know where to actually move the arm to (in order to move the magnet), as that is the property the arm actually works with 
+        to interact with the magnet.
 
         Returns
         -------
         Magnet
-            ``self``, for chaining.
+            ``self``, for method chaining.
         """
         self.placed = False
         if self.tray_position is not None:
-            self.center = np.asarray(self.tray_position[:2], dtype=float)
+            self.anchor_xy = np.asarray(self.tray_position[:2], dtype=float)
         return self
 
     def describe(self) -> str:
         """One-line human-readable summary of the magnet's state."""
         state = "placed" if self.placed else "stowed"
-        foot = f"foot=({self.center[0]:.3f}, {self.center[1]:.3f})"
-        handle = self.handle_xy
-        if not np.allclose(handle, self.center):
-            grip = f" handle=({handle[0]:.3f}, {handle[1]:.3f}, z={self.grip_height:.3f})"
+        anchor = f"anchor=({self.get_anchor_xy()[0]:.3f}, {self.get_anchor_xy()[1]:.3f})"
+        grip = self.get_grip_xy()
+        if not np.allclose(grip, self.get_anchor_xy()):
+            grip_text = f" grip=({grip[0]:.3f}, {grip[1]:.3f}, z={self.grip_height:.3f})"
         else:
-            grip = f" grip_z={self.grip_height:.3f}"
-        return f"{self.kind}:{self.identifier} {state} {foot} yaw={self.orientation:.2f}{grip}"
+            grip_text = f" grip_z={self.grip_height:.3f}"
+        return f"{self.kind}:{self.identifier} {state} {anchor} yaw={self.orientation:.2f}{grip_text}"
 
 
 @dataclass
 class BlockMagnet(Magnet):
     """A weight block (with a gripper holder) that pins down a point or area.
 
-    The gripper grasps the holder directly above the block's centre at
-    ``holder_height`` above the board surface.
+    The gripper grasps the holder directly above the block's anchor at
+    ``handle_height`` above the board surface.
 
     Parameters
     ----------
@@ -167,21 +186,21 @@ class BlockMagnet(Magnet):
 
 @dataclass
 class LBracketMagnet(Magnet):
-    """An L-bracket whose foot pins a board edge and whose handle is gripped.
+    """An L-bracket magnet, its grip point (its handle) is offset from the anchor (not directly above it).
 
-    * **Magnetic foot** -- centred at `center` on the board surface; holds
-      the paper and provides a clean pivot / hinge line.
-    * **Handle** -- stands off from the foot along `orientation` by
-      `handle_offset` metres and rises to `handle_height` above the board;
-      this is what the gripper grasps.
+    * **Anchor / contact point** -- ``anchor_xy`` sits on the board surface and
+      holds the paper in place.
+    * **Grip point / handle** -- the gripper picks up a separate handle point
+      offset from ``anchor_xy`` in the direction of ``-orientation``.
 
     Parameters
     ----------
     handle_offset : float, optional
-        Distance from the foot to the handle along `orientation` (metres).
-        Default ``0.03``.
+        Distance from ``anchor_xy`` to the grip point in the direction of
+        ``-orientation`` (metres). Default ``0.03``.
     handle_height : float, optional
-        Height of the handle above the board surface (metres).  Default ``0.03``.
+        Height of the grip point above the board surface (metres).
+        Default ``0.03``.
     """
 
     handle_offset: float = 0.03
@@ -189,13 +208,14 @@ class LBracketMagnet(Magnet):
     kind: str = "lbracket"
 
     @property
-    def handle_xy(self) -> np.ndarray:
-        """numpy.ndarray, shape (2,): World (x, y) of the handle (not the foot).
+    def grip_xy(self) -> np.ndarray:
+        """numpy.ndarray, shape (2,): World (x, y) of the grip point.
 
-        The handle is offset from the foot in the direction of `orientation`.
+        The grip point is offset from the anchor in the direction of
+        ``-orientation``.
         """
         direction = np.array([np.cos(self.orientation), np.sin(self.orientation)])
-        return self.center - direction * self.handle_offset
+        return self.get_anchor_xy() - direction * self.handle_offset
 
     @property
     def grip_height(self) -> float:

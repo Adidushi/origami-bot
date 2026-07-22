@@ -20,7 +20,7 @@ calibration fitting — not hand-rolled.
 | `geometry.py` | `spatialmath`/`scipy`-based core: `FoldLine` (reflect/side/project), pose ↔ `SE3`, rigid-transform fit, polygon helpers |
 | `calibration.py` | `BoardCalibration`: fit board→base `SE3`; build downward-gripper TCP poses at an explicit height |
 | `paper.py` | `Paper`: named landmarks + `Fold` records, with a single `fold()` plus `rotate`/`translate` |
-| `magnets.py` | `Magnet`, `BlockMagnet`, `LBracketMagnet` (foot center + handle offset/height + hinge), `MagnetRegistry` |
+| `magnets.py` | `Magnet`, `BlockMagnet`, `LBracketMagnet` (anchor_xy + grip_xy + grip height + hinge), `MagnetRegistry` |
 | `backends.py` | `RTDEArmBackend`/`RobotiqGripperBackend` (real) and `Simulated*` (in-memory) backends |
 | `arm.py` | `Arm`: `move_to_board_point`, `hover_above`, `press_onto_board`, `grip`/`release` — heights always explicit |
 | `workspace.py` | `Workspace`: both arms + paper + magnets + board |
@@ -81,12 +81,19 @@ The same `actions.*` recipes run in both modes — only the backend differs.
 `Arm.move_to_board_point(x, y, height_above_board, tool_rotation=0.0)` always
 takes a height. Only `press_onto_board` targets the surface (that's its job).
 Magnets carry their own grip height, so picking up an L-bracket grabs its *raised
-handle*, not the board:
+grip point*, not the board. The magnet model distinguishes the board-contact
+anchor from the robot's grasp point:
+
+- `anchor_xy`: where the magnet is placed on the board
+- `grip_xy`: where the robot actually grips
+
+For a block magnet, those are the same point. For an L-bracket, `grip_xy` is
+offset from `anchor_xy` by the handle geometry:
 
 ```python
 from origami import LBracketMagnet, actions
 
-bracket = LBracketMagnet("hinge_a", center=[0.10, 0.10], orientation=1.57,
+bracket = LBracketMagnet("hinge_a", anchor_xy=[0.10, 0.10], orientation=1.57,
                          handle_offset=0.04, handle_height=0.03,
                          tray_position=(0.02, 0.02))
 actions.place_magnet(ws, bracket, x=0.18, y=0.13, orientation=1.57)
