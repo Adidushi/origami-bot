@@ -1,13 +1,16 @@
 """Project configuration: robot endpoints, board geometry and taught calibrations.
 
-The corner poses below were recorded from the arms (see ``mvmt/get.py`` /
-``mvmt/record.py``).  They are fed to `ArmCalibration.from_taught_corners` to
-fit each arm's world-to-base transform.  Re-teach them whenever the board or
-tool changes, then update these dictionaries.
+`LEFT_ARM_CORNERS`, `RIGHT_ARM_CORNERS`, and `MAGNET_PLATFORM_POSITIONS` are
+loaded straight from ``calibration.json`` (next to this file), which is
+tracked as the current source of truth for the calibration and tha platform positions. Whenever
+the arms, board, or table drift, run ``python -m origami.calibrate`` to
+re-calibrate everything and and writes the updated positions back to calibration.json.
 """
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 
 from .coords import ArmCalibration
 
@@ -34,38 +37,19 @@ PAPER_WIDTH = 0.21
 PAPER_HEIGHT = 0.297
 
 # --------------------------------------------------------------------------- #
-# Taught corner poses (UR TCP poses) recorded from the arms via mvmt/get.py.
+# Taught calibration (UR TCP poses / world positions), loaded from
+# calibration.json -- see `origami.calibrate`.
 # --------------------------------------------------------------------------- #
-LEFT_OFFSET = [0, -4/100, 0]
+#: Path to the calibration data written by `origami.calibrate`.
+CALIBRATION_FILE = Path(__file__).with_name("calibration.json")
+
+_calibration = json.loads(CALIBRATION_FILE.read_text())
 #: Left-arm TCP poses at the four board corners.
-LEFT_ARM_CORNERS = {
-    "bottom_right": [-0.3811126487291087+LEFT_OFFSET[0], 0.5916647198316248+LEFT_OFFSET[1], -0.17351351102176717+LEFT_OFFSET[2],
-                     -0.0017339176957592841, 3.139994045314482, 0.00013657689149166203],
-    "top_right": [-0.6356999775610952+LEFT_OFFSET[0], 0.5832977377925311+LEFT_OFFSET[1], -0.17351351102176717+LEFT_OFFSET[2],
-                  -0.053227757033574456, 3.0608363549416917, 0.046481588744146055],
-    "top_left": [-0.6356387966936057+LEFT_OFFSET[0], 0.22944310560649264+LEFT_OFFSET[1], -0.17351351102176717+LEFT_OFFSET[2],
-                 -0.053413480764674906, 3.060169822572126, 0.045263435720190294],
-    "bottom_left": [-0.369466455186429+LEFT_OFFSET[0], 0.22944420875840602+LEFT_OFFSET[1], -0.17351351102176717+LEFT_OFFSET[2],
-                    -0.05344966348740266, 3.0601583065307283, 0.045224651625265795],
-}
-
-RIGHT_OFFSET = [0, 0, 0]
+LEFT_ARM_CORNERS = _calibration["LEFT_ARM_CORNERS"]
 #: Right-arm TCP poses at the four board corners.
-RIGHT_ARM_CORNERS = {
-    "top_right": [-0.1320102015841494+RIGHT_OFFSET[0], -0.37458099868781475+RIGHT_OFFSET[1], 0.092677005139537792+RIGHT_OFFSET[2],
-                  7.130459517859422e-06, 3.14001135938399, 2.4104940535007586e-06],
-    "top_left": [-0.1320042761452743+RIGHT_OFFSET[0], -0.7272697364921029+RIGHT_OFFSET[1], 0.09268955490848681+RIGHT_OFFSET[2],
-                 -2.1510189625228577e-05, 3.14001739575538, -3.328512474240181e-05],
-    "bottom_left": [0.12452098632867296+RIGHT_OFFSET[0], -0.7213056515565214+RIGHT_OFFSET[1], 0.092675737793551137+RIGHT_OFFSET[2],
-                    6.894154764248805e-06, 3.139980309941688, -4.381002936334777e-05],
-    "bottom_right": [0.12452041218730804+RIGHT_OFFSET[0], -0.3696886048388927+RIGHT_OFFSET[1], 0.092693874742788494+RIGHT_OFFSET[2],
-                     -3.390196218503921e-05, 3.1399894497564644, -4.516041120261115e-05],
-}
-
-MAGNET_PLATFORM_POSITIONS = {
-    "bottom_right": [-0.09, 0.05, -0.038],
-    "bottom_left": [-0.224, 0.05, -0.038]
-}
+RIGHT_ARM_CORNERS = _calibration["RIGHT_ARM_CORNERS"]
+#: Magnet platform corner positions in world space (left-arm frame).
+MAGNET_PLATFORM_POSITIONS = _calibration["MAGNET_PLATFORM_POSITIONS"]
 
 CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-16.5/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
 CREASER_GRIP_OPEN_POS = 0.65
