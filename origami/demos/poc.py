@@ -81,12 +81,14 @@ def main() -> None:
         handle_height=0.015,
         tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.7/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.2/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
+    ws.magnets.add(block_a)
 
     block_b = BlockMagnet(
         identifier="block_b",
         handle_height=0.015,
         tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.7/100-5/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.2/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
+    ws.magnets.add(block_b)
 
     lbracket_a = LBracketMagnet(
         identifier="lbracket_a",
@@ -95,7 +97,9 @@ def main() -> None:
         orientation = 0,
         tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1.15/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.05/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
+    ws.magnets.add(lbracket_a)
 
+    '''
     actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
     actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
     ws.left.go_home()
@@ -242,25 +246,58 @@ def main() -> None:
     ws.arm(side='right').move_offset_world(0, 0, 5/100)
     ws.arm(side='right').go_home()
     actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
+    ws.left.go_home()
 
+    # --------------------------------------------------------------------------- #
+    # Step 11.x - Temporary step to have left arm move magnet to be in reach of right arm
+    # and
+    # --------------------------------------------------------------------------- #
+    print("[Step 11.1] remove additional magnets to free up space to place big boi")
+    input("Proceed with step 11.1? (press Enter to continue)")
+    actions.remove_magnet(ws, 'block_a', carrying_arm="left")
+    actions.remove_magnet(ws, 'block_b', carrying_arm="left")
+    ws.arm(side='left').go_home()
+    '''
+    print("[Step 11.2] move magnet to be in reach of right arm")
+    input("Proceed with step 11.2? (press Enter to continue)")
+    actions.place_magnet(
+        workspace=ws,
+        magnet=lbracket_a,
+        carrying_arm="left",
+        x=config.BOARD_WIDTH/2-5/100,
+        y=20/100,
+        orientation=math.pi # rotate the magnet to be in the correct orientation for the right arm to pick it up
+    )
+    ws.left.go_home()
+
+    print("[Step 11.3] right arm grip magnet")
+    input("Proceed with step 11.3? (press Enter to continue)")
+    actions.grip_magnet(
+        workspace=ws,
+        identifier="lbracket_a",
+        carrying_arm="right"
+    )
+    ws.right.go_home()
 
     # ---------------------------------------------------------------------------
     # Step 12 — grab paper for third fold — grip bottom-left paper edge
     # ---------------------------------------------------------------------------
     print("[Step 12] grab paper for third fold — grip bottom-left paper edge")
-    # Grip the paper edge with the right arm (sideways horizontal approach)
+    input("Proceed with step 12? (press Enter to continue)")
+    # Grip the paper edge with the left arm (sideways horizontal approach)
     actions.grip_paper(
         workspace=ws, 
-        x=paper_bottom_left_corner_x + 1/100,  # approach from just beyond the left edge of the paper
+        x=paper_bottom_left_corner_x - 1/100,  # approach from just beyond the left edge of the paper
         y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
-        grip_angle= math.pi / 4,
-        arm="right"
+        grip_angle= - math.pi / 4,
+        arm="left"
     )
 
     # ---------------------------------------------------------------------------
     # Step 13 — fold paper from bottom-left corner to middle
     # ---------------------------------------------------------------------------
     print("[Step 13] fold paper from bottom-left corner to middle")
+    input("Proceed with step 13? (press Enter to continue)")
 
     # Fold axis at the board centre: folds the right half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
@@ -275,14 +312,26 @@ def main() -> None:
         fold_percent=5/8
     )
 
-    # # place the corner folding magnet (long boy)
-    # actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+5/100, y=2/100, carrying_arm="left")
-    # ws.arm(side='left').go_home()
+    # ----------------------------------------------------------------------------
+    # Step 14 — place l-bracket magnet to hold the fold
+    # ----------------------------------------------------------------------------
+    print("[Step 14] place l-bracket magnet to hold the fold")
+    input("Proceed with step 14? (press Enter to continue)")
+    # place the corner folding magnet (long boy)
+    actions.release_magnet(
+        ws, 
+        "lbracket_a", 
+        x=config.BOARD_WIDTH/2-5/100, 
+        y=2/100, 
+        carrying_arm="right",
+        orientation=math.pi # rotate the magnet to be in the correct orientation for the right arm to place it
+    )
+    ws.arm(side='left').go_home()
 
     # Open the hand, release the paper and go home (post-fold)
-    ws.arm(side='right').goto(0.65)
-    ws.arm(side='right').move_offset_world(0, 0, 5/100)
-    ws.arm(side='right').go_home()
+    ws.arm(side='left').goto(0.65)
+    ws.arm(side='left').move_offset_world(0, 0, 5/100)
+    ws.arm(side='left').go_home()
     actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
 
 

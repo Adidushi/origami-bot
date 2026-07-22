@@ -59,8 +59,13 @@ MAGNET_GRIP_CLOSE_POS = 0.8
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _grip_magnet_at(arm, x: float, y: float, z: float) -> None:
+def _grip_magnet_at(arm, x: float, y: float, z: float, orientation: float = 0.0) -> None:
     """Approach a magnet from above, descend to its grip height, close, retreat."""
+    # point via the magnet's saved internal orientation
+    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT).rotate_gripper(orientation)
+    # rotate gripper to pick up magnet at its current orientation so that it can be gripped properly
+    arm.rotate_absolute(magnet_orientation)
+    print(f"Gripping magnet at ({x:.3f}, {y:.3f}, {z:.3f}) with orientation {orientation:.2f} rad")
     clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance)
     arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)
@@ -69,7 +74,7 @@ def _grip_magnet_at(arm, x: float, y: float, z: float) -> None:
     arm.move_to_world(x, y, clearance)
 
 
-def _release_magnet_at(arm, x: float, y: float, z: float) -> None:
+def _release_magnet_at(arm, x: float, y: float, z: float, orientation: float = 0.0) -> None:
     """Carry to the magnet grip point, descend to release height, open, retreat.
     Parameters
     ----------
@@ -78,6 +83,9 @@ def _release_magnet_at(arm, x: float, y: float, z: float) -> None:
     x, y, z : float
         World coordinates of the magnet grip point (metres).
     """
+    # rotate the arm to the desired orientation so that it can be released properly
+    new_magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT).rotate_gripper(orientation)
+    arm.rotate_absolute(new_magnet_orientation)
 
     clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance)
@@ -112,14 +120,54 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     if magnet.tray_position is not None:
         pick_up_point = np.asarray(magnet.get_grip_xy(), dtype=float)
         _grip_magnet_at(arm, float(pick_up_point[0]), float(pick_up_point[1]),
-                        float(magnet.tray_position[2]) + magnet.grip_height)
+                        float(magnet.tray_position[2]) + magnet.grip_height, magnet.orientation) # The magnet's orientation is 0 at the tray, but for conformity we should still use the magnet's saved orientation here in case it is changed in the future.
 
     # update the magnet state first so its derived grip point reflects the new anchor,
     # then extract that updated grip point for the release move
     grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
-    _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height)
+    # now that magnet state is updated we can use that value directly from the magnet.
+    _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, magnet.orientation)
     if magnet.identifier not in workspace.magnets:
         workspace.magnets.add(magnet)
+
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    # rotate gripper back to neutral orientation after placing the magnet
+    arm.rotate_absolute(neutral_grip) 
+
+def remove_magnet(workspace: Workspace, identifier: str,
+                  carrying_arm: str = "left") -> None:
+    """Pick a placed magnet back up and return it to its tray.
+
+    Parameters
+    ----------
+    workspace : Workspace
+    identifier : str
+        Identifier of the magnet to remove.
+    carrying_arm : {'left', 'right'}, optional
+    """
+    arm = workspace.arm(carrying_arm)
+    magnet = workspace.magnets.get(identifier)
+    if not magnet.placed:
+        print(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to remove while not placed. Ignoring command.")
+        return
+    grip = magnet.get_grip_xy()
+
+    # rotate the arm to the magnet's orientation so that it can be gripped properly
+    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT).rotate_gripper(magnet.orientation)
+    arm.rotate_absolute(magnet_orientation)
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
+
+    # update the magnet state first so its derived grip point reflects the tray position,
+    # then extract that updated grip point for the release move
+    home = magnet.stow().get_grip_xy()
+
+    _release_magnet_at(arm, float(home[0]), float(home[1]),
+                        float(magnet.tray_position[2]) + magnet.grip_height, 0.0)
+    
+    # rotate the arm to the magnet's orientation so that it can be released properly (at home it has orientation 0)
+    default_magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    arm.rotate_absolute(default_magnet_orientation)
+
 
 
 def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
@@ -140,43 +188,67 @@ def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     arm = workspace.arm(carrying_arm)
     magnet = workspace.magnets.get(identifier)
     grip = magnet.get_grip_xy()
+    
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, orientation)
 
-    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
-    _release_magnet_at(arm, x, y, magnet.grip_height)
-    magnet.place_at(x, y, orientation)
+    # update magnet state to where its going to be placed and extract those (this takes orientation into consideration)
+    grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
+    # now that magnet state is updated we can use that value directly from the magnet.
+    _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, magnet.orientation)
 
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    # rotate gripper back to neutral orientation after placing the magnet
+    arm.rotate_absolute(neutral_grip)
 
-def remove_magnet(workspace: Workspace, identifier: str,
-                  carrying_arm: str = "left") -> None:
-    """Pick a placed magnet back up and return it to its tray.
+def grip_magnet(workspace: Workspace, identifier: str, carrying_arm: str = "left") -> None:
+    """Grip a placed magnet and hold it in the gripper.
 
     Parameters
     ----------
     workspace : Workspace
     identifier : str
-        Identifier of the magnet to remove.
+        Identifier of the magnet to grip.
     carrying_arm : {'left', 'right'}, optional
     """
     arm = workspace.arm(carrying_arm)
     magnet = workspace.magnets.get(identifier)
     if not magnet.placed:
-        print(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to remove while not placed. Ignoring command.")
-        return
-    grip = magnet.get_grip_xy()
+        raise Exception(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to grip while not placed. Ignoring command.")
 
+    grip = magnet.get_grip_xy()
     _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
 
-    # update the magnet state first so its derived grip point reflects the tray position,
-    # then extract that updated grip point for the release move
-    home = magnet.stow().get_grip_xy()
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    # rotate gripper back to neutral orientation after placing the magnet
+    arm.rotate_absolute(neutral_grip)
 
-    if magnet.tray_position is not None:
-        _release_magnet_at(arm, float(home[0]), float(home[1]),
-                           float(magnet.tray_position[2]) + magnet.grip_height)
-    else:
-        arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True) # open the gripper and block until it is fully open before moving the arm up
-        arm.lift()
+def release_magnet(workspace: Workspace, identifier: str, x: float, y: float,
+                   orientation: float = 0.0, carrying_arm: str = "left") -> None:
+    """Release a gripped magnet at a specified board position. 
 
+    Note: requires that the magnet is already gripped in the arm's gripper.  If it is not, use `move_magnet` instead!.
+
+    Parameters
+    ----------
+    workspace : Workspace
+    identifier : str
+        Identifier of the magnet to release.
+    x, y : float
+        Board position to release the magnet (metres).
+    orientation : float, optional
+        Yaw of the magnet (radians).  Default 0.
+    carrying_arm : {'left', 'right'}, optional
+    """
+    arm = workspace.arm(carrying_arm)
+    magnet = workspace.magnets.get(identifier)
+    
+    # update magnet state to where its going to be placed and extract those (this takes orientation into consideration)
+    grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
+    _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, orientation)
+
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    # rotate gripper back to neutral orientation after releasing the magnet
+    arm.rotate_absolute(neutral_grip)
 
 
 # ===========================================================================
