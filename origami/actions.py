@@ -62,10 +62,9 @@ MAGNET_GRIP_CLOSE_POS = 0.8
 def _grip_magnet_at(arm, x: float, y: float, z: float, orientation: float = 0.0) -> None:
     """Approach a magnet from above, descend to its grip height, close, retreat."""
     # point via the magnet's saved internal orientation
-    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT).rotate_gripper(orientation)
+    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP).rotate_gripper(orientation)
     # rotate gripper to pick up magnet at its current orientation so that it can be gripped properly
     arm.rotate_absolute(magnet_orientation)
-    print(f"Gripping magnet at ({x:.3f}, {y:.3f}, {z:.3f}) with orientation {orientation:.2f} rad")
     clearance = z + MAGNET_APPROACH_CLEARANCE
     arm.move_to_world(x, y, clearance)
     arm.goto(MAGNET_GRIP_OPEN_POS, blocking=True)
@@ -84,7 +83,7 @@ def _release_magnet_at(arm, x: float, y: float, z: float, orientation: float = 0
         World coordinates of the magnet grip point (metres).
     """
     # rotate the arm to the desired orientation so that it can be released properly
-    new_magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT).rotate_gripper(orientation)
+    new_magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP).rotate_gripper(orientation)
     arm.rotate_absolute(new_magnet_orientation)
 
     clearance = z + MAGNET_APPROACH_CLEARANCE
@@ -126,11 +125,12 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     # then extract that updated grip point for the release move
     grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
     # now that magnet state is updated we can use that value directly from the magnet.
+    print(f'magnet orientation is: {magnet.orientation}')
     _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, magnet.orientation)
     if magnet.identifier not in workspace.magnets:
         workspace.magnets.add(magnet)
 
-    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP)
     # rotate gripper back to neutral orientation after placing the magnet
     arm.rotate_absolute(neutral_grip) 
 
@@ -153,7 +153,7 @@ def remove_magnet(workspace: Workspace, identifier: str,
     grip = magnet.get_grip_xy()
 
     # rotate the arm to the magnet's orientation so that it can be gripped properly
-    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT).rotate_gripper(magnet.orientation)
+    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP).rotate_gripper(magnet.orientation)
     arm.rotate_absolute(magnet_orientation)
     _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
 
@@ -165,7 +165,7 @@ def remove_magnet(workspace: Workspace, identifier: str,
                         float(magnet.tray_position[2]) + magnet.grip_height, 0.0)
     
     # rotate the arm to the magnet's orientation so that it can be released properly (at home it has orientation 0)
-    default_magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    default_magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP)
     arm.rotate_absolute(default_magnet_orientation)
 
 
@@ -196,7 +196,7 @@ def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     # now that magnet state is updated we can use that value directly from the magnet.
     _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, magnet.orientation)
 
-    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP)
     # rotate gripper back to neutral orientation after placing the magnet
     arm.rotate_absolute(neutral_grip)
 
@@ -218,7 +218,7 @@ def grip_magnet(workspace: Workspace, identifier: str, carrying_arm: str = "left
     grip = magnet.get_grip_xy()
     _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
 
-    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP)
     # rotate gripper back to neutral orientation after placing the magnet
     arm.rotate_absolute(neutral_grip)
 
@@ -246,7 +246,7 @@ def release_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
     _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, orientation)
 
-    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.FLAT)
+    neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP)
     # rotate gripper back to neutral orientation after releasing the magnet
     arm.rotate_absolute(neutral_grip)
 
@@ -300,7 +300,7 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
     
     # based on right hand rule since tooltip (index finger) = forward (-x base dir), gripper (middle finger)=flat (in this case pointing left = +y base dir) then rotation axis/thumb = +z base dir with
     # positive rotation angle being left, so in rotvec case pos degree is to the left so we do the same here.
-    grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, degrees=math.degrees(grip_angle))
+    grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, rotation=grip_angle)
     a.rotate_absolute(grip_angle_oriented_orientation)
 
     a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
@@ -336,7 +336,7 @@ def flip_paper(workspace: Workspace,
     a.rotate_absolute(point_down)
 
     # now that the arm is pointing downwards, we can rotate the wrist joint to flip the paper
-    rotate_wrist = point_down.rotate_gripper(180)
+    rotate_wrist = point_down.rotate_gripper(math.pi)
     a.rotate_absolute(rotate_wrist) # rotate the wrist joint by 180 degrees to flip the paper
     #a.rotate_joint(5, math.pi) # rotate the wrist joint by 180 degrees to flip the paper
 
@@ -565,7 +565,7 @@ def crease(
 
 
     clearance_offset = 0.103
-    crease_height = 6.5/100# * math.sin(math.pi/4) # safe height to
+    crease_height = 5.2/100# * math.sin(math.pi/4) # safe height to
 
 
     # rotate tool tip by 45 degrees in direction of crease
@@ -595,6 +595,8 @@ def crease(
         arm.move_offset_world(0, -(crease_length/2+middle_magnet_width), 0)
         arm.move_offset_world(0,0,-clearance_offset)
         arm.move_offset_world(0, -(crease_length-middle_magnet_width)/2, 0)
+
+    arm.move_offset_world(0,0,clearance_offset)
 
     return_creaser_tool(workspace, crease_x, crease_y, crease_z, grip_angle=0, arm=arm_side)
 

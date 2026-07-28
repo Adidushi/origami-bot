@@ -56,7 +56,7 @@ def _jog(arm, label, extra_stop_keys=()):
     while True:
         pose = arm.current_tcp_pose()
         print(f"[{label}] step={step * 1000:.1f}mm pos={[round(p, 4) for p in pose[:3]]}",
-              end="", flush=True)
+              end="\r", flush=True)
         key = _read_key()
 
         if key in ("\r", "\n") or key in extra_stop_keys:
@@ -91,7 +91,7 @@ def calibrate_board(left_arm, right_arm, left_corners, right_corners):
 
     # send each arm to its starting corner; _jog then nudges relatively from there
     for arm, pos in zip(arms, positions):
-        arm.move_to_tcp(pos + list(ORIENTATION), SPEED, ACCEL)
+        arm.movej_to_tcp(pos + list(ORIENTATION), SPEED, ACCEL)
 
     print("w/s=x-/x+ a/d=y-/y+ q/e=z-/z+ +/-=step r=switch arm Enter=confirm both")
     active = 0
@@ -100,12 +100,12 @@ def calibrate_board(left_arm, right_arm, left_corners, right_corners):
 
     lx, ly, lz = left_arm.current_tcp_pose()[:3]
     ox, oy, oz = left_corners["bottom_left"][:3]
-    new_left_corners = {name: [x + lx - ox, y + ly - oy, z + lz - oz, rx, ry, rz]
+    new_left_corners = {name: [x + lx - ox, y + ly - oy, z + lz - oz, ORIENTATION[0], ORIENTATION[1], ORIENTATION[2]]
                         for name, (x, y, z, rx, ry, rz) in left_corners.items()}
 
     rx_, ry_, rz_ = right_arm.current_tcp_pose()[:3]
     ox, oy, oz = right_corners["top_right"][:3]
-    new_right_corners = {name: [x + rx_ - ox, y + ry_ - oy, z + rz_ - oz, rx, ry, rz]
+    new_right_corners = {name: [x + rx_ - ox, y + ry_ - oy, z + rz_ - oz, ORIENTATION[0], ORIENTATION[1], ORIENTATION[2]]
                          for name, (x, y, z, rx, ry, rz) in right_corners.items()}
 
     return new_left_corners, new_right_corners
@@ -128,12 +128,12 @@ def calibrate_magnet_platform(left_arm, right_arm, positions):
         new_positions = {}
         for name in ("bottom_right", "bottom_left"):
             # send the arm to the stored corner; _jog then nudges relatively from there
-            left_arm.move_to_tcp(list(left_arm.world_to_tcp(*positions[name])[:3]) + list(ORIENTATION),
+            left_arm.move_to_tcp(list(positions[name][:3]) + list(ORIENTATION),
                                  SPEED, ACCEL)
             if _jog(left_arm, f"magnet platform {name}", extra_stop_keys="n") == "n":
                 break  # restart the whole sequence from bottom_right
             # read back the confirmed world position straight from the arm
-            x, y, z = left_arm.current_world_pos()
+            x, y, z = left_arm.current_tcp_pose()[:3]
             new_positions[name] = [x, y, z]
         else:
             return new_positions

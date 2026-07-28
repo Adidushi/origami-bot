@@ -296,7 +296,7 @@ class GripperOrientation(Enum):
         # If the reference/absolute up is parallel with tool z we don't have a good reference to define a relative up on the tool x-y plane / circle, 
         # so we need to use a different reference.
         reference_up = _UP_REFERENCE.vector
-        if abs(float(np.dot(reference_up, normalized_tool_z))) > 1.0 - 1e-6:
+        if abs(float(np.dot(reference_up, normalized_tool_z))) > 1.0 - 1e-4:
             reference_up = _UP_REFERENCE_FALLBACK.vector
 
         # We want a relative up direction on the tool x-y plane / circle, achieved by
@@ -318,8 +318,8 @@ class GripperOrientation(Enum):
         return {
             GripperOrientation.FLAT:          side,
             GripperOrientation.FLIPPED_FLAT: -side,
-            GripperOrientation.VERTICAL_UP:    up,
-            GripperOrientation.VERTICAL_DOWN: -up,
+            GripperOrientation.VERTICAL_UP:   -up, # vertical up is subjective, we set it as -up after running it and wanting it to align with vertical have in arm home position (which we defined subjectively as vertical up).
+            GripperOrientation.VERTICAL_DOWN: up,
         }[self]
 
     def __str__(self) -> str:
@@ -365,10 +365,10 @@ class ArmOrientation:
 
     Examples
     --------
-    Tooltip forward, gripper flat, aimed 30 deg toward the right:
+    Tooltip forward, gripper flat, aimed math.pi/6 (30 deg) toward the right:
 
         ArmOrientation.from_directions(TooltipDirection.FORWARD, GripperOrientation.FLAT).tilt_tooltip(
-            TooltipDirection.RIGHT, degrees=30)
+            TooltipDirection.RIGHT, rotation=math.pi/6)
 
     Re-aim the current tool orientation downward, keeping its gripper roll:
 
@@ -518,24 +518,24 @@ class ArmOrientation:
             tool_z=tool_z, tool_y=orientation.resolve_relative_orientation(tool_z))
         return self
 
-    def tilt_tooltip(self, direction: TooltipDirection, degrees: float) -> "ArmOrientation":
-        """Tilt the tooltip ``degrees`` in the direction of ``direction``. Keeps the gripper orientation the same relative to the tooltip.
+    def tilt_tooltip(self, direction: TooltipDirection, rotation: float) -> "ArmOrientation":
+        """Tilt the tooltip ``rotation`` in the direction of ``direction``. Keeps the gripper orientation the same relative to the tooltip.
 
         - This lets you aim the tooltip relative to where it currently is towards a cardinal direction.
-            -  e.g. from its current orientation, tilt 30 degrees to the right.
+            -  e.g. from its current orientation, tilt math.pi/6 (30 degrees) to the right.
         - ``direction`` must differ from the direction the tooltip already points
           along, since then there is nothing to tilt toward, otherwise raises
           ``ValueError``.
         - Math Explanation: https://imgur.com/a/5iOEfoZ though in this case we don't need to compute 
-        the angle between tool_z and the "target" direction since we only tilt by a given specified ``degrees`` 
+        the angle between tool_z and the "target" direction since we only tilt by a given specified ``rotation`` 
         rather than actually reorienting the tooltip to point exactly along the target direction.
 
         Parameters
         ----------
         direction : TooltipDirection
             The base-frame direction to tilt the tooltip toward.
-        degrees : float
-            How far to tilt, in degrees.
+        rotation : float
+            How far to tilt, in radians.
 
         Returns
         -------
@@ -549,12 +549,12 @@ class ArmOrientation:
         if np.dot(self.tool_z, direction.vector) > 1.0 - 1e-6:
             raise ValueError(
                 f"cannot tilt toward {direction}: tooltip already points along it")
-        tilt = rot_vec_to_rot_matrix(unit_rotation_axis * math.radians(degrees))
+        tilt = rot_vec_to_rot_matrix(unit_rotation_axis * rotation)
         self._matrix = tilt @ self._matrix
         return self
 
-    def rotate_gripper(self, degrees: float) -> "ArmOrientation":
-        """Rotate the gripper by ``degrees``.
+    def rotate_gripper(self, rotation: float) -> "ArmOrientation":
+        """Rotate the gripper by ``rotation``.
 
         - This is done by composing the current orientation with a rotation about
           the tooltip direction (tool z). Spinning about that axis holds the tooltip
@@ -564,8 +564,8 @@ class ArmOrientation:
 
         Parameters
         ----------
-        degrees : float
-            How far to rotate the gripper, in degrees.
+        rotation : float
+            How far to rotate the gripper, in radians.
 
         Returns
         -------
@@ -573,7 +573,7 @@ class ArmOrientation:
             ``self``, for method chaining.
         """
         # We rotate about the tooltip direction (tool z) to spin the gripper around it, which preserves the tooltip direction and only changes the gripper roll.
-        rotate_gripper = rot_vec_to_rot_matrix(self.tool_z * math.radians(degrees))
+        rotate_gripper = rot_vec_to_rot_matrix(self.tool_z * rotation)
         # This rotate gripper is relative to the current tool frame, which means we need to apply it on the current tool frame via left composition
         # in order to achieve the desired gripper rotation. 
         self._matrix = rotate_gripper @ self._matrix

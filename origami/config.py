@@ -49,10 +49,8 @@ LEFT_ARM_CORNERS = _calibration["LEFT_ARM_CORNERS"]
 #: Right-arm TCP poses at the four board corners.
 RIGHT_ARM_CORNERS = _calibration["RIGHT_ARM_CORNERS"]
 #: Magnet platform corner positions in world space (left-arm frame).
-MAGNET_PLATFORM_POSITIONS = _calibration["MAGNET_PLATFORM_POSITIONS"]
 
-CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-16.5/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
-CREASER_GRIP_OPEN_POS = 0.65
+
 
 FLIP_PAPER_CLEARANCE = 0.35
 FLIP_PAPER_OVERROTATION = 0.5
@@ -68,7 +66,6 @@ RIGHT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, -90, -9
 LEFT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, 90, -90, -90, 0]]
 
 
-
 def left_calibration() -> ArmCalibration:
     """Fit the left arm's world-to-base calibration from its taught corners."""
     return ArmCalibration.from_taught_corners(LEFT_ARM_CORNERS, BOARD_WIDTH, BOARD_HEIGHT)
@@ -77,3 +74,14 @@ def left_calibration() -> ArmCalibration:
 def right_calibration() -> ArmCalibration:
     """Fit the right arm's world-to-base calibration from its taught corners."""
     return ArmCalibration.from_taught_corners(RIGHT_ARM_CORNERS, BOARD_WIDTH, BOARD_HEIGHT)
+
+# In calibration we calibrate and save magnet platform positions via left arm TCP (as world coordinates are only defined after we calibrate base-to-world space of both arms)
+# thus requiring us to work with TCP there and need to convert to world coordinates here as when run in in normal operation its after calibration defined updated calibration TCP poses for arm-to-world
+# for each arm, and therefore the conversion to world coordinates works correctly at this point. 
+MAGNET_PLATFORM_POSITIONS = {
+    "bottom_right": left_calibration().arm_to_world_xyz(_calibration["MAGNET_PLATFORM_POSITIONS"]["bottom_right"][:3]),
+    "bottom_left": left_calibration().arm_to_world_xyz(_calibration["MAGNET_PLATFORM_POSITIONS"]["bottom_left"][:3])
+}
+
+CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-14.5/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16.9/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
+CREASER_GRIP_OPEN_POS = 0.65
