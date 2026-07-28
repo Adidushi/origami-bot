@@ -320,7 +320,6 @@ def main() -> None:
     # Fold axis at the board centre: folds the right half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5 cm, matching get.py's radius value.
     end_pos = list(ws.left.current_world_pos())
-    end_pos = list(ws.left.current_world_pos())
     end_pos[0] = config.BOARD_WIDTH/2-1/100
     diff = abs(ws.left.current_world_pos()[0] - end_pos[0])
     end_pos[1] += diff
@@ -338,21 +337,22 @@ def main() -> None:
     print("[Step 14] place l-bracket magnet to hold the fold")
     input("Proceed with step 14? (press Enter to continue)")
     # place the corner folding magnet (long boy)
-    actions.place_magnet(
+    actions.release_magnet(
         ws, 
         "lbracket_a", 
         x=config.BOARD_WIDTH/2-1/100, 
         y=2/100, 
-        carrying_arm="left",
+        carrying_arm="right",
         # orientation=math.pi # rotate the magnet to be in the correct orientation for the right arm to place it
     )
-    ws.arm(side='left').go_home()
+    ws.arm(side='right').go_home()
 
     # Open the hand, release the paper and go home (post-fold)
     ws.arm(side='left').goto(0.65)
     ws.arm(side='left').move_offset_world(0, 0, 5/100)
     ws.arm(side='left').go_home()
     actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
+    ws.arm(side='left').go_home()
 
 
     print(f"\n{'=' * 60}")
