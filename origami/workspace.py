@@ -45,7 +45,7 @@ class Workspace:
     board_width: float = config.BOARD_WIDTH
     board_height: float = config.BOARD_HEIGHT
         
-    def go_to_start(self, asynchronous) -> None:
+    def go_to_start(self, asynchronous=False) -> None:
         """Move both arms to their configured start positions."""
         self.left.go_home(asynchronous=asynchronous)
         self.right.go_home(asynchronous=asynchronous)

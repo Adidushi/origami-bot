@@ -417,7 +417,7 @@ def main() -> None:
     # Radius = grip_x - fold_axis_x ≈ 9.5/2 cm, to the centerline of page
     end_pos = list(ws.right.current_world_pos())
     end_pos[0] -= 9.5/100
-    poses = actions.fold_arc(
+    actions.fold_arc(
         arm=ws.right,
         end_pos=end_pos,
         n_steps=8,
@@ -481,7 +481,7 @@ def main() -> None:
     # Radius = grip_x - fold_axis_x ≈ 9.5/2 cm, to the centerline of page
     end_pos = list(ws.right.current_world_pos())
     end_pos[0] += 9.5/100
-    poses = actions.fold_arc(
+    actions.fold_arc(
         arm=ws.right,
         end_pos=end_pos,
         n_steps=8,

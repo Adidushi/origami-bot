@@ -48,8 +48,8 @@ Convenience moves
 """
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
+from typing import Iterable
 
 from . import backends as backends_mod
 from .backends import ArmBackend, GripperBackend
@@ -84,7 +84,7 @@ class ArmConfig:
     acceleration: float = 0.5
     joint_speed: float = 1.0
     joint_acceleration: float = 1.4
-    home: list[float, float, float] | None = None
+    home: list[float] | None = None
 
 
 class Arm:
@@ -307,7 +307,7 @@ class Arm:
             return self._rotate_relative_arm_orientation(rotation, speed, acceleration)
         return self._rotate_relative_rotvec(*rotation, speed=speed, acceleration=acceleration)
 
-    def rotate_absolute(self, rotation: tuple[float, float, float] | ArmOrientation,
+    def rotate_absolute(self, rotation: Iterable[float] | ArmOrientation,
                         speed: float | None = None,
                         acceleration: float | None = None) -> bool:
         """Rotate the tool to an absolute orientation.
