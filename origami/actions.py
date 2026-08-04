@@ -52,6 +52,7 @@ GRIP_OVERHANG_MIN = 0.005
 
 #: How far outside the grip point the arm starts its horizontal approach (metres).
 PAPER_APPROACH_OFFSET = 2/100
+CREASER_APPROACH_OFFSET = 5/100
 
 MAGNET_GRIP_OPEN_POS = 0.6
 MAGNET_GRIP_CLOSE_POS = 0.8
@@ -153,9 +154,9 @@ def remove_magnet(workspace: Workspace, identifier: str,
     grip = magnet.get_grip_xy()
 
     # rotate the arm to the magnet's orientation so that it can be gripped properly
-    magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP).rotate_gripper(magnet.orientation)
-    arm.rotate_absolute(magnet_orientation)
-    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, magnet_orientation)
+    # magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP).rotate_gripper(magnet.orientation)
+    # arm.rotate_absolute(magnet_orientation)
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, magnet.orientation)
 
     # update the magnet state first so its derived grip point reflects the tray position,
     # then extract that updated grip point for the release move
@@ -445,7 +446,7 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
         Position of the creaser tool handle (metres).
     grip_angle : float
         Direction the arm approaches from, as a rotation about the board normal
-        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside in the
+        (radians).  The arm starts ``CREASER_APPROACH_OFFSET`` outside in the
         ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in.
         Use ``0`` to approach from the left (``-x``), ``π/2`` from below
         (``-y``), etc.
@@ -453,8 +454,8 @@ def grip_crease_tool(workspace: Workspace, x: float, y: float, z: float, grip_an
         Which arm performs the grip.  Default ``'right'``.
     """
     a = workspace.arm(arm)
-    x_start = x - PAPER_APPROACH_OFFSET * math.cos(grip_angle)
-    y_start = y - PAPER_APPROACH_OFFSET * math.sin(grip_angle)
+    x_start = x - CREASER_APPROACH_OFFSET * math.cos(grip_angle)
+    y_start = y - CREASER_APPROACH_OFFSET * math.sin(grip_angle)
     z_start = z
 
     # Step 1: transit to approach start, preserving current orientation.
@@ -491,7 +492,7 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
         Position of the creaser tool tray slot (metres).
     grip_angle : float
         Direction the arm approaches from, as a rotation about the board normal
-        (radians).  The arm starts ``PAPER_APPROACH_OFFSET`` outside in the
+        (radians).  The arm starts ``CREASER_APPROACH_OFFSET`` outside in the
         ``(-cos(grip_angle), -sin(grip_angle))`` direction and slides in.
         Use ``0`` to approach from the left (``-x``), ``π/2`` from below
         (``-y``), etc.
@@ -499,8 +500,8 @@ def return_creaser_tool(workspace: Workspace, x: float, y: float, z: float, grip
         Which arm performs the return.  Default ``'right'``.
     """
     a = workspace.arm(arm)
-    x_start = x - PAPER_APPROACH_OFFSET * math.cos(grip_angle)
-    y_start = y - PAPER_APPROACH_OFFSET * math.sin(grip_angle)
+    x_start = x - CREASER_APPROACH_OFFSET * math.cos(grip_angle)
+    y_start = y - CREASER_APPROACH_OFFSET * math.sin(grip_angle)
     z_start = z
 
     # Step 1: transit to approach start, preserving current orientation.

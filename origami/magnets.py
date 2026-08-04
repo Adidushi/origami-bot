@@ -146,6 +146,7 @@ class Magnet:
             ``self``, for method chaining.
         """
         self.placed = False
+        self.orientation = 0.0
         if self.tray_position is not None:
             self.anchor_xy = np.asarray(self.tray_position[:2], dtype=float)
         return self

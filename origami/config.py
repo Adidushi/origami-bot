@@ -83,5 +83,5 @@ MAGNET_PLATFORM_POSITIONS = {
     "bottom_left": left_calibration().arm_to_world_xyz(_calibration["MAGNET_PLATFORM_POSITIONS"]["bottom_left"][:3])
 }
 
-CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-14.5/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16.9/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
+CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-14.7/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16.9/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
 CREASER_GRIP_OPEN_POS = 0.65
