@@ -135,19 +135,18 @@ def place_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
     # rotate gripper back to neutral orientation after placing the magnet
     arm.rotate_absolute(neutral_grip) 
 
-def remove_magnet(workspace: Workspace, identifier: str,
+def remove_magnet(workspace: Workspace, magnet: Magnet,
                   carrying_arm: str = "left") -> None:
     """Pick a placed magnet back up and return it to its tray.
 
     Parameters
     ----------
     workspace : Workspace
-    identifier : str
-        Identifier of the magnet to remove.
+    magnet : Magnet
+        Object reference of the magnet to remove.
     carrying_arm : {'left', 'right'}, optional
     """
     arm = workspace.arm(carrying_arm)
-    magnet = workspace.magnets.get(identifier)
     if not magnet.placed:
         print(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to remove while not placed. Ignoring command.")
         return
@@ -171,15 +170,15 @@ def remove_magnet(workspace: Workspace, identifier: str,
 
 
 
-def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
+def move_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
                 orientation: float = 0.0, carrying_arm: str = "left") -> None:
     """Relocate an already-placed magnet to a new board position.
 
     Parameters
     ----------
     workspace : Workspace
-    identifier : str
-        Identifier of the magnet to move.
+    magnet : Magnet
+        Object reference of the magnet to move.
     x, y : float
         New board position (metres).
     orientation : float, optional
@@ -187,7 +186,6 @@ def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     carrying_arm : {'left', 'right'}, optional
     """
     arm = workspace.arm(carrying_arm)
-    magnet = workspace.magnets.get(identifier)
     grip = magnet.get_grip_xy()
     
     _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, orientation)
@@ -201,18 +199,17 @@ def move_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     # rotate gripper back to neutral orientation after placing the magnet
     arm.rotate_absolute(neutral_grip)
 
-def grip_magnet(workspace: Workspace, identifier: str, carrying_arm: str = "left") -> None:
+def grip_magnet(workspace: Workspace, magnet: Magnet, carrying_arm: str = "left") -> None:
     """Grip a placed magnet and hold it in the gripper.
 
     Parameters
     ----------
     workspace : Workspace
-    identifier : str
-        Identifier of the magnet to grip.
+    magnet : Magnet
+        Object reference of the magnet to grip.
     carrying_arm : {'left', 'right'}, optional
     """
     arm = workspace.arm(carrying_arm)
-    magnet = workspace.magnets.get(identifier)
     if not magnet.placed:
         raise Exception(f"ERROR (non-fatal): Magnet {magnet.identifier} tried to grip while not placed. Ignoring command.")
 
@@ -223,7 +220,7 @@ def grip_magnet(workspace: Workspace, identifier: str, carrying_arm: str = "left
     # rotate gripper back to neutral orientation after placing the magnet
     arm.rotate_absolute(neutral_grip)
 
-def release_magnet(workspace: Workspace, identifier: str, x: float, y: float,
+def release_magnet(workspace: Workspace, magnet: Magnet, x: float, y: float,
                    orientation: float = 0.0, carrying_arm: str = "left") -> None:
     """Release a gripped magnet at a specified board position. 
 
@@ -232,8 +229,8 @@ def release_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     Parameters
     ----------
     workspace : Workspace
-    identifier : str
-        Identifier of the magnet to release.
+    magnet : Magnet
+        Object reference of the magnet to release.
     x, y : float
         Board position to release the magnet (metres).
     orientation : float, optional
@@ -241,8 +238,7 @@ def release_magnet(workspace: Workspace, identifier: str, x: float, y: float,
     carrying_arm : {'left', 'right'}, optional
     """
     arm = workspace.arm(carrying_arm)
-    magnet = workspace.magnets.get(identifier)
-    
+
     # update magnet state to where its going to be placed and extract those (this takes orientation into consideration)
     grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
     _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, orientation)

@@ -94,7 +94,7 @@ def main() -> None:
     )
     ws.magnets.add(lbracket_a)
     
-    '''
+
     actions.place_magnet(ws, block_a, x=0.275, y=0.10, carrying_arm="left")
     actions.place_magnet(ws, block_b, x=0.265, y=0.225, carrying_arm="left")
     ws.left.go_home()
@@ -152,7 +152,7 @@ def main() -> None:
     # Step 6 — remove l-bracket magnet
     # ---------------------------------------------------------------------------
     print("[Step 6] remove l-bracket magnet")
-    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
+    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
     ws.left.go_home()
     # ---------------------------------------------------------------------------
     # Step 7 — unfold paper
@@ -172,8 +172,8 @@ def main() -> None:
     # Step 8 — remove placed magnets
     # ---------------------------------------------------------------------------
     print("[Step 8] remove placed magnets")
-    actions.remove_magnet(ws, 'block_a', carrying_arm="left")
-    actions.remove_magnet(ws, 'block_b', carrying_arm="left")
+    actions.remove_magnet(ws, block_a, carrying_arm="left")
+    actions.remove_magnet(ws, block_b, carrying_arm="left")
     ws.left.go_home()
 
     actions.grip_paper(
@@ -262,7 +262,7 @@ def main() -> None:
 
     actions.move_magnet(
         ws,
-        'block_b',
+        block_b,
         x=16/100+paper_bottom_left_corner_x,
         y=8/100,
         carrying_arm='right'
@@ -270,9 +270,9 @@ def main() -> None:
     
     ws.right.go_home()
 
-    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
-    actions.remove_magnet(ws, 'block_a', carrying_arm="left")
-    actions.remove_magnet(ws, 'block_b', carrying_arm="left")
+    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
+    actions.remove_magnet(ws, block_a, carrying_arm="left")
+    actions.remove_magnet(ws, block_b, carrying_arm="left")
     ws.left.go_home()
     
     print("TODO: add angled crease and refactor crease function to be more general and work with start/end pos")
@@ -375,11 +375,11 @@ def main() -> None:
     ws.right.move_offset_world(0, 0, 5/100)
     ws.right.go_home()
     ws.right.grip()
-    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
-    actions.remove_magnet(ws, 'block_a', carrying_arm="left")
-    actions.remove_magnet(ws, 'block_b', carrying_arm="left")
+    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
+    actions.remove_magnet(ws, block_a, carrying_arm="left")
+    actions.remove_magnet(ws, block_b, carrying_arm="left")
     ws.left.go_home()
-    '''
+
     # ----------------------------------------------------------------------------
     # Step 15 - move paper back to center and down 8.5cm
     # ----------------------------------------------------------------------------
@@ -477,8 +477,8 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     print("[Step 21] move block magnet onto last fold")
     input("Proceed with step 21? (press Enter to continue)")
-    actions.move_magnet(ws, 'block_a', x=config.BOARD_WIDTH/2+2.5/100, y=config.BOARD_HEIGHT-12/100)
-    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
+    actions.move_magnet(ws, block_a, x=config.BOARD_WIDTH/2+2.5/100, y=config.BOARD_HEIGHT-12/100)
+    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
 
     # ---------------------------------------------------------------------------
     # Step 22 — grip left paper edge
@@ -539,8 +539,8 @@ def main() -> None:
         crease_under_magnet=False
     )
 
-    actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
-    actions.remove_magnet(ws, 'block_a', carrying_arm="left")    
+    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
+    actions.remove_magnet(ws, block_a, carrying_arm="left")
     ws.left.go_home()
 
     actions.grip_paper(

@@ -156,16 +156,16 @@ def test_magnet_place_move_remove(ws: Workspace) -> None:
     check(lbracket.placed, "L-bracket magnet marked as placed")
 
     # Move block to new position
-    actions.move_magnet(ws, "block_a", x=0.15, y=0.15, carrying_arm="left")
+    actions.move_magnet(ws, block_a, x=0.15, y=0.15, carrying_arm="left")
     check(np.allclose(block.get_anchor_xy(), [0.15, 0.15]),
           f"block anchor updated to (0.15, 0.15), got {block.get_anchor_xy().tolist()}")
 
     # Remove block → tray
-    actions.remove_magnet(ws, "block_a", carrying_arm="left")
+    actions.remove_magnet(ws, block_a, carrying_arm="left")
     check(not block.placed, "block magnet marked as stowed")
 
     # Remove L-bracket → tray
-    actions.remove_magnet(ws, "lbracket_a", carrying_arm="left")
+    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
     check(not lbracket.placed, "L-bracket magnet marked as stowed")
 
 
