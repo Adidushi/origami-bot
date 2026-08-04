@@ -398,7 +398,7 @@ def main() -> None:
     ws.right.move_offset_world(0,0,-1/100)
 
     # let go of the page, move back and go home
-    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.right.goto(actions.MAGNET_GRIP_OPEN_POS)
     ws.right.move_offset_world(0,-2/100,0)
     ws.right.go_home()
     ws.right.grip()
@@ -453,7 +453,7 @@ def main() -> None:
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+5/100, y=config.BOARD_HEIGHT-20.5/100, carrying_arm="left")
     ws.left.go_home()
-    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.right.goto(actions.MAGNET_GRIP_OPEN_POS)
     ws.right.move_offset_world(0,-2/100,0)
     ws.right.go_home()
 
@@ -521,7 +521,7 @@ def main() -> None:
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2-5/100, y=config.BOARD_HEIGHT-20.5/100, carrying_arm="left")
     ws.left.go_home()
-    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.right.goto(actions.MAGNET_GRIP_OPEN_POS)
     ws.right.move_offset_world(0,-2/100,0)
     ws.right.go_home()
     # ---------------------------------------------------------------------------
@@ -561,7 +561,7 @@ def main() -> None:
     actions.flip_paper(workspace=ws, arm="right")
 
     # let go of paper, move back and go home
-    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.right.goto(actions.MAGNET_GRIP_OPEN_POS)
     ws.right.move_offset_world(0,-2/100,0)
     ws.right.go_home()
 
