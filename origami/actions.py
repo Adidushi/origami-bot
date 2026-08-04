@@ -563,7 +563,6 @@ def crease(
 
 
     clearance_offset = 0.103
-    crease_height = 5.2/100# * math.sin(math.pi/4) # safe height to
 
 
     # rotate tool tip by 45 degrees in direction of crease
@@ -573,7 +572,7 @@ def crease(
     #     arm.rotate_joint(4, -math.pi/4)
     middle_magnet_width = 7/100
     
-    arm.move_to_world(start_x, start_y, crease_height+clearance_offset)
+    arm.move_to_world(start_x, start_y, config.CREASE_HEIGHT+clearance_offset)
     if axis == 'y':
         arm.rotate_joint(5, math.pi/2)
     # move along the crease line for a given length
@@ -598,5 +597,54 @@ def crease(
 
     arm.move_offset_world(0,0,clearance_offset)
 
+    return_creaser_tool(workspace, crease_x, crease_y, crease_z, grip_angle=0, arm=arm_side)
+
+def crease_2(
+    workspace: Workspace,
+    arm_side: str,
+    start_pos: list[float],
+    end_pos: list[float]
+    ):
+
+    # initialize constants
+    arm = workspace.arm(arm_side)
+    crease_x, crease_y, crease_z = config.CREASER_POS
+    grip_crease_tool(workspace, crease_x, crease_y, crease_z, grip_angle=0, arm=arm_side)
+    start_pos = np.array(start_pos)
+    end_pos = np.array(end_pos)
+
+    # calculate move direction for crease
+    position_diff = end_pos[:2] - start_pos[:2]
+    move_direction = position_diff / np.linalg.norm(position_diff)
+    crease_rotation = math.atan(move_direction[1] - move_direction[0])
+
+    # calculate tooltip direction given this data
+    orientation = (ArmOrientation
+                   .from_tcp_pose(arm.current_tcp_pose())
+                   .tooltip_direction(TooltipDirection.DOWN)
+                   .rotate_gripper(crease_rotation)
+                   .tilt_tooltip(TooltipDirection.RIGHT, config.CREASE_TILT))
+
+    # modify start position to consider creaser tilt
+    modified_start_pos = [*(start_pos[:2]+move_direction*math.sin(config.CREASE_TILT)).tolist(), config.CREASE_HEIGHT*math.cos(config.CREASE_TILT)]
+
+    # calculate modified clearance position
+    modified_clearance_pos = modified_start_pos
+    modified_clearance_pos[2] += config.CREASE_CLEARANCE
+
+    # move in stages
+    # move to clearance
+    arm.move_to_world(*modified_clearance_pos)
+    # tilt to correct orientation
+    arm.rotate_absolute(orientation)
+    # move down to correct start position
+    arm.move_to_world(*modified_start_pos)
+    # slide to end pos
+    arm.move_to_world(*end_pos)
+    # move up to clearance
+    arm.move_offset_world(0, 0, config.CREASE_CLEARANCE)
+
+    # go home and return creaser
+    arm.go_home()
     return_creaser_tool(workspace, crease_x, crease_y, crease_z, grip_angle=0, arm=arm_side)
 
