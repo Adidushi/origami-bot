@@ -145,6 +145,9 @@ def main():
     right_arm = Arm.real("right", config.RIGHT_ARM_IP, config.right_calibration(),
                          config=ArmConfig(home=config.RIGHT_ARM_START_JOINTS))
 
+    left_arm.grip()
+    right_arm.grip()
+
     data = json.loads(config.CALIBRATION_FILE.read_text())
 
     print("Calibrating board corners...")

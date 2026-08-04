@@ -531,6 +531,7 @@ def crease(
     start_x: float,
     start_y: float,
     crease_length: float,
+    crease_under_magnet: bool = True
 ) -> None:
     """Creases the paper by picking up the creaser tool (atm its position is hardcoded in this function
     later on we will extract it to a tool registry that workspace has access to), rotate tool tip by 45 degrees in direction of crease
@@ -584,17 +585,19 @@ def crease(
         arm.move_offset_world(0,0,-clearance_offset)
         arm.move_offset_world((crease_length-middle_magnet_width)/2, 0, 0)
         arm.move_offset_world(0,0,clearance_offset)
-        arm.move_offset_world(-(crease_length/2+middle_magnet_width), 0, 0)
-        arm.move_offset_world(0,0,-clearance_offset)
-        arm.move_offset_world(-(crease_length-middle_magnet_width)/2, 0, 0)
+        if crease_under_magnet:
+            arm.move_offset_world(-(crease_length/2+middle_magnet_width), 0, 0)
+            arm.move_offset_world(0,0,-clearance_offset)
+            arm.move_offset_world(-(crease_length-middle_magnet_width)/2, 0, 0)
     else:
         arm.move_offset_world(0, middle_magnet_width/2, 0) # move past the of the magnet to avoid collisions
         arm.move_offset_world(0,0,-clearance_offset)
         arm.move_offset_world(0, (crease_length-middle_magnet_width)/2, 0)
         arm.move_offset_world(0,0,clearance_offset)
-        arm.move_offset_world(0, -(crease_length/2+middle_magnet_width), 0)
-        arm.move_offset_world(0,0,-clearance_offset)
-        arm.move_offset_world(0, -(crease_length-middle_magnet_width)/2, 0)
+        if crease_under_magnet:
+            arm.move_offset_world(0, -(crease_length/2+middle_magnet_width), 0)
+            arm.move_offset_world(0,0,-clearance_offset)
+            arm.move_offset_world(0, -(crease_length-middle_magnet_width)/2, 0)
 
     arm.move_offset_world(0,0,clearance_offset)
 
