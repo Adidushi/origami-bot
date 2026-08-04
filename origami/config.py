@@ -4,7 +4,7 @@
 loaded straight from ``calibration.json`` (next to this file), which is
 tracked as the current source of truth for the calibration and tha platform positions. Whenever
 the arms, board, or table drift, run ``python -m origami.calibrate`` to
-re-calibrate everything and and writes the updated positions back to calibration.json.
+re-calibrate everything and writes the updated positions back to calibration.json.
 """
 from __future__ import annotations
 
