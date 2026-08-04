@@ -161,11 +161,11 @@ def test_magnet_place_move_remove(ws: Workspace) -> None:
           f"block anchor updated to (0.15, 0.15), got {block.get_anchor_xy().tolist()}")
 
     # Remove block → tray
-    actions.remove_magnet(ws, block_a, carrying_arm="left")
+    actions.remove_magnet(block_a, carrying_arm="left")
     check(not block.placed, "block magnet marked as stowed")
 
     # Remove L-bracket → tray
-    actions.remove_magnet(ws, lbracket_a, carrying_arm="left")
+    actions.remove_magnet(lbracket_a, carrying_arm="left")
     check(not lbracket.placed, "L-bracket magnet marked as stowed")
 
 
@@ -260,7 +260,7 @@ def test_flip_paper(ws: Workspace) -> None:
     tl_before = ws.paper.landmark("top_left").copy()
     cy_before = ws.paper.centroid()[1]
 
-    actions.flip_paper(ws, axis="y", folding_arm="right", anchor_arm="left")
+    actions.flip_paper(axis="y", folding_arm="right", anchor_arm="left")
 
     bl_after = ws.paper.landmark("bottom_left")
     tl_after = ws.paper.landmark("top_left")
@@ -309,7 +309,7 @@ def test_grip_paper(ws: Workspace) -> None:
     # grip_angle = π/2 sets the approach direction to +y: the arm starts
     # PAPER_APPROACH_OFFSET below the grip point (further outside the board) and
     # slides horizontally in the +y direction to straddle the edge.
-    actions.grip_paper(ws, x=grip_x, y=grip_y, grip_angle=math.pi / 2, arm="left")
+    actions.grip_paper(x=grip_x, y=grip_y, grip_angle=math.pi / 2, arm="left")
 
     px, py, pz = ws.left.get_tool_pos()
     info("arm pos after grip", f"({px:.4f}, {py:.4f}, {pz:.4f})")
@@ -351,7 +351,7 @@ def test_grip_paper_corner(ws: Workspace) -> None:
     # the natural approach direction for this corner.
     grip_angle = 3 * math.pi / 4
 
-    actions.grip_paper(ws, x=grip_x, y=grip_y, grip_angle=grip_angle, arm="left")
+    actions.grip_paper(x=grip_x, y=grip_y, grip_angle=grip_angle, arm="left")
 
     px, py, pz = ws.right.get_tool_pos()
     info("arm pos after grip", f"({px:.4f}, {py:.4f}, {pz:.4f})")
