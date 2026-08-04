@@ -214,7 +214,7 @@ class LBracketMagnet(Magnet):
         The grip point is offset from the anchor in the direction of
         ``-orientation``.
         """
-        direction = np.array([np.cos(self.orientation), np.sin(self.orientation)])
+        direction = np.array([np.cos(self.orientation), -np.sin(self.orientation)]) # 1/sqrt 2, 1/sqrt 2
         return self.get_anchor_xy() - direction * self.handle_offset
 
     @property

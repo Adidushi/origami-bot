@@ -51,7 +51,7 @@ PAPER_GRIP_HEIGHT = 0.001
 GRIP_OVERHANG_MIN = 0.005
 
 #: How far outside the grip point the arm starts its horizontal approach (metres).
-PAPER_APPROACH_OFFSET = 0.05
+PAPER_APPROACH_OFFSET = 2/100
 
 MAGNET_GRIP_OPEN_POS = 0.6
 MAGNET_GRIP_CLOSE_POS = 0.8
@@ -155,7 +155,7 @@ def remove_magnet(workspace: Workspace, identifier: str,
     # rotate the arm to the magnet's orientation so that it can be gripped properly
     magnet_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP).rotate_gripper(magnet.orientation)
     arm.rotate_absolute(magnet_orientation)
-    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height)
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, magnet_orientation)
 
     # update the magnet state first so its derived grip point reflects the tray position,
     # then extract that updated grip point for the release move
@@ -300,10 +300,10 @@ def grip_paper(workspace: Workspace, x: float, y: float, grip_angle: float,
     
     # based on right hand rule since tooltip (index finger) = forward (-x base dir), gripper (middle finger)=flat (in this case pointing left = +y base dir) then rotation axis/thumb = +z base dir with
     # positive rotation angle being left, so in rotvec case pos degree is to the left so we do the same here.
+    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
     grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, rotation=grip_angle)
     a.rotate_absolute(grip_angle_oriented_orientation)
 
-    a.move_to_tcp(a.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
     a.goto(.5) # open the gripper to prepare to grip the paper
     # Slide horizontally in to the paper edge.
     a.move_to_tcp(a.world_to_tcp(x, y, PAPER_GRIP_HEIGHT))

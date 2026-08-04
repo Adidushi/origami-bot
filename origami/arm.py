@@ -78,7 +78,7 @@ class ArmConfig:
         Default joint acceleration (rad/s²).  Default 1.4.
     """
 
-    clearance_z: float = 0.10
+    clearance_z: float = 10/100
     contact_depth: float = 0
     speed: float = 0.25
     acceleration: float = 0.5

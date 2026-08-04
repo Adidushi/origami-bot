@@ -25,7 +25,7 @@ from .arm import Arm, ArmConfig
 ORIENTATION = (0.0, math.pi, 0.0)  # tool points straight down, no roll
 STEP = 0.005        # metres, starting jog increment
 STEP_DELTA = 0.001  # metres, how much +/- resizes the step
-SPEED, ACCEL = 0.1, 0.3
+SPEED, ACCEL = 1, 0.5
 
 # wasd + qe -> (axis index, sign)
 AXIS_KEYS = {"w": (0, -1), "s": (0, 1), "a": (1, -1), "d": (1, 1), "q": (2, -1), "e": (2, 1)}
