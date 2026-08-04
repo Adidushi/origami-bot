@@ -141,9 +141,9 @@ def calibrate_magnet_platform(left_arm, right_arm, positions):
 
 def main():
     left_arm = Arm.real("left", config.LEFT_ARM_IP, config.left_calibration(),
-                        config=ArmConfig(home=config.LEFT_ARM_START_JOINTS))
+                        config=ArmConfig(home=config.LEFT_ARM_START_JOINTS), gripper_ip=config.LEFT_ARM_IP, gripper_port=config.GRIPPER_PORT)
     right_arm = Arm.real("right", config.RIGHT_ARM_IP, config.right_calibration(),
-                         config=ArmConfig(home=config.RIGHT_ARM_START_JOINTS))
+                         config=ArmConfig(home=config.RIGHT_ARM_START_JOINTS), gripper_ip=config.RIGHT_ARM_IP, gripper_port=config.GRIPPER_PORT)
 
     left_arm.grip()
     right_arm.grip()

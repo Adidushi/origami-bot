@@ -37,14 +37,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="demo_get — paper edge grip and fold")
     parser.add_argument("--hardware", action="store_false",
                         help="drive real arms (default: hardware)")
-    parser.add_argument("--calibrate", action="store_true",
-                        help="calibrate the boards (default: False)")
     args = parser.parse_args()
 
     mode = "HARDWARE" if args.hardware else "SIMULATION"
-    if args.calibrate:
-        calibrate_boards()
-        return
 
     print("=" * 60)
     print("  demo_get — grip paper edge and fold")
@@ -401,6 +396,7 @@ def main() -> None:
     # Step 17 — grip paper edge
     # ---------------------------------------------------------------------------
     print("[Step 17] grab paper for first wing fold — grip paper edge")
+    input("Proceed with step 17? (press Enter to continue)")
     # Grip the paper edge with the right arm (sideways horizontal approach)
     actions.grip_paper(
         workspace=ws, 
@@ -414,7 +410,7 @@ def main() -> None:
     # Step 18 — fold right paper wing
     # ---------------------------------------------------------------------------
     print("[Step 18] fold right paper wing")
-
+    input("Proceed with step 18? (press Enter to continue)")
     # Fold axis at the board centre: folds the right half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5/2 cm, to the centerline of page
     end_pos = list(ws.right.current_world_pos())
@@ -430,6 +426,7 @@ def main() -> None:
     # Step 19 — place l-bracket magnet to hold the fold  
     # ---------------------------------------------------------------------------
     print("[Step 19] place l-bracket magnet to hold the fold")
+    input("Proceed with step 19? (press Enter to continue)")
     # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2+5/100, y=config.BOARD_HEIGHT-20.5/100, carrying_arm="left")
@@ -442,6 +439,7 @@ def main() -> None:
     # Step 20 — crease paper
     # ---------------------------------------------------------------------------
     print("[Step 20] crease paper")
+    input("Proceed with step 20? (press Enter to continue)")
     actions.crease(
         workspace=ws,
         arm_side="left",
@@ -456,6 +454,7 @@ def main() -> None:
     # Step 21 — move block magnet onto last fold and remove L bracket
     # ---------------------------------------------------------------------------
     print("[Step 21] move block magnet onto last fold")
+    input("Proceed with step 21? (press Enter to continue)")
     actions.move_magnet(ws, 'block_a', x=config.BOARD_WIDTH/2+2.5/100, y=config.BOARD_HEIGHT-12/100)
     actions.remove_magnet(ws, 'lbracket_a', carrying_arm="left")
 
@@ -463,6 +462,7 @@ def main() -> None:
     # Step 22 — grip left paper edge
     # ---------------------------------------------------------------------------
     print("[Step 22] grip left paper edge")
+    input("Proceed with step 22? (press Enter to continue)")
     # Grip the paper edge with the right arm (sideways horizontal approach)
     actions.grip_paper(
         workspace=ws, 
@@ -476,6 +476,7 @@ def main() -> None:
     # Step 23 — fold left paper wing
     # ---------------------------------------------------------------------------
     print("[Step 23] fold left paper wing")
+    input("Proceed with step 23? (press Enter to continue)")
 
     # Fold axis at the board centre: folds the left half of the paper over.
     # Radius = grip_x - fold_axis_x ≈ 9.5/2 cm, to the centerline of page
@@ -493,6 +494,7 @@ def main() -> None:
     # Step 24 — place l-bracket magnet to hold the fold  
     # ---------------------------------------------------------------------------
     print("[Step 24] place l-bracket magnet to hold the fold")
+    input("Proceed with step 24? (press Enter to continue)")
     # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws, lbracket_a, x=config.BOARD_WIDTH/2-5/100, y=config.BOARD_HEIGHT-20.5/100, carrying_arm="left")
@@ -504,6 +506,7 @@ def main() -> None:
     # Step 25 — crease paper
     # ---------------------------------------------------------------------------
     print("[Step 25] crease paper")
+    input("Proceed with step 25? (press Enter to continue)")
     actions.crease(
         workspace=ws,
         arm_side="left",
@@ -529,9 +532,10 @@ def main() -> None:
     ws.right.move_offset_world(0,8.5/100,0)
 
     # ---------------------------------------------------------------------------
-    # Step 9 — flip paper over
+    # Step 26 — flip paper over
     # ---------------------------------------------------------------------------
-    print("[Step 9] flip paper over")
+    print("[Step 26] flip paper over")
+    input("Proceed with step 26? (press Enter to continue)")
     actions.flip_paper(workspace=ws, arm="right")
 
     # let go of paper, move back and go home
@@ -543,43 +547,6 @@ def main() -> None:
     print(f"\n{'=' * 60}")
     print("  Demo complete.")
     print(f"{'=' * 60}\n")
-
-
-def calibrate_boards():
-    arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS)]
-    ws = Workspace.hardware(arm_configs=arm_configs, home=True)
-
-    ws.left.grip()
-    ws.right.grip()
-    
-    # Centre an A4 sheet on the board.  A4 is 297 mm tall on a 270 mm board,
-    # giving a natural 13.5 mm overhang on both the top and bottom edges.
-    origin_x = config.BOARD_WIDTH  / 2 - config.PAPER_WIDTH  / 2
-    origin_y = config.BOARD_HEIGHT / 2 - config.PAPER_HEIGHT / 2   # < 0
-    ws.paper = Paper.rectangle(config.PAPER_WIDTH, config.PAPER_HEIGHT,
-                               origin=(origin_x, origin_y))
-    
-    input("ready to calibrate")
-
-    # ws.left.move_to_world(*ws.left.tcp_to_world(config.LEFT_ARM_CORNERS["top_left"]))
-    # ws.right.move_to_world(*ws.right.tcp_to_world(config.RIGHT_ARM_CORNERS["bottom_right"]))
-    while input("next?") != "exit":
-        ws.right.move_to_world(origin_x, 0, 0.5/100)
-        if input("next?") == "exit":
-            break
-        ws.right.move_to_world(origin_x+config.PAPER_WIDTH/2, 0, 0.5/100)
-        if input("next?") == "exit":
-            break
-        ws.right.move_to_world(origin_x+config.PAPER_WIDTH, 0, 0.5/100)
-    
-    ws.left.go_home()
-    input("calibrate board")
-
-    while input("next?") != "exit":
-        ws.left.move_to_world(*config.MAGNET_PLATFORM_POSITIONS["bottom_right"])
-        if input("next?") == "exit":
-            break
-        ws.left.move_to_world(*config.MAGNET_PLATFORM_POSITIONS["bottom_left"])
 
 if __name__ == "__main__":
     main()
