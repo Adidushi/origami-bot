@@ -574,15 +574,15 @@ def crease(
 
 def crease_multiple(
         arm: Arm,
-        start_pos: list[list[float]],
-        end_pos: list[list[float]] ):
+        position_pairs: list[tuple[list[float], list[float]]]
+        ):
 
     # initalize and grab tool    
     crease_x, crease_y, crease_z = config.CREASER_POS
     grip_crease_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
 
     # crease each movement
-    for start, end in zip(start_pos, end_pos):
+    for start, end in position_pairs:
         crease_2(arm, start, end)
 
     # go home and return creaser
@@ -594,6 +594,9 @@ def crease_2(
     start_pos: list[float],
     end_pos: list[float]
     ):
+    '''
+    goes above first point, tilts and angles, then goes to second point.
+    '''
 
     # initialize constants
     start_pos = np.array(start_pos)
@@ -602,7 +605,7 @@ def crease_2(
     # calculate move direction for crease
     position_diff = end_pos[:2] - start_pos[:2]
     move_direction = position_diff / np.linalg.norm(position_diff)
-    crease_rotation = math.atan(move_direction[1] - move_direction[0])
+    crease_rotation = math.atan(move_direction[1]/move_direction[0])
 
     # calculate tooltip direction given this data
     orientation = (ArmOrientation
@@ -611,12 +614,16 @@ def crease_2(
                    .rotate_gripper(crease_rotation)
                    .tilt_tooltip(TooltipDirection.RIGHT, config.CREASE_TILT))
 
-    # modify start position to consider creaser tilt
+    # modify start and end position to consider creaser tilt
     modified_start_pos = [*(start_pos[:2]+move_direction*math.sin(config.CREASE_TILT)).tolist(), config.CREASE_HEIGHT*math.cos(config.CREASE_TILT)]
+    modified_end_pos = [*(end_pos[:2]+move_direction*math.sin(config.CREASE_TILT)).tolist(), config.CREASE_HEIGHT*math.cos(config.CREASE_TILT)]
 
     # calculate modified clearance position
     modified_clearance_pos = modified_start_pos
     modified_clearance_pos[2] += config.CREASE_CLEARANCE
+
+    print(f"Crease from {start_pos} to {end_pos}")
+    input(f"Crease from {modified_start_pos} to {modified_end_pos} with orientation {orientation}. Continue?")
 
     # move in stages
     # move to clearance
@@ -626,7 +633,7 @@ def crease_2(
     # move down to correct start position
     arm.move_to_world(*modified_start_pos)
     # slide to end pos
-    arm.move_to_world(*end_pos)
+    arm.move_to_world(*modified_end_pos)
     # move up to clearance
     arm.move_offset_world(0, 0, config.CREASE_CLEARANCE)
 

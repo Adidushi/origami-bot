@@ -83,6 +83,9 @@ MAGNET_PLATFORM_POSITIONS = {
     "bottom_left": left_calibration().arm_to_world_xyz(_calibration["MAGNET_PLATFORM_POSITIONS"]["bottom_left"][:3])
 }
 
+# width of 2-magnet-wide placeable magnet, used so we dont hit in while creasing
+MAGNET_WIDTH = 7/100
+
 CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-14.7/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16.9/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
 CREASER_GRIP_OPEN_POS = 0.65
 CREASE_HEIGHT = 5.2/100
