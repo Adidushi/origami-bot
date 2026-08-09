@@ -573,6 +573,23 @@ def crease(
 
     return_creaser_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
 
+def crease_multiple(
+        arm: Arm,
+        start_pos: list[list[float]],
+        end_pos: list[list[float]] ):
+
+    # initalize and grab tool    
+    crease_x, crease_y, crease_z = config.CREASER_POS
+    grip_crease_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
+
+    # crease each movement
+    for start, end in zip(start_pos, end_pos):
+        crease_2(arm, start, end)
+
+    # go home and return creaser
+    arm.go_home()
+    return_creaser_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
+
 def crease_2(
     arm: Arm,
     start_pos: list[float],
@@ -580,8 +597,6 @@ def crease_2(
     ):
 
     # initialize constants
-    crease_x, crease_y, crease_z = config.CREASER_POS
-    grip_crease_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
     start_pos = np.array(start_pos)
     end_pos = np.array(end_pos)
 
@@ -616,7 +631,4 @@ def crease_2(
     # move up to clearance
     arm.move_offset_world(0, 0, config.CREASE_CLEARANCE)
 
-    # go home and return creaser
-    arm.go_home()
-    return_creaser_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
 
