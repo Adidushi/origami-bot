@@ -32,10 +32,9 @@ import math
 
 import numpy as np
 
-from origami import config, Arm
-
+from . import config
+from .arm import Arm
 from .magnets import Magnet
-from .workspace import Workspace
 from .rotation import ArmOrientation, TooltipDirection, GripperOrientation, compose_rotation_vectors
 
 # ---------------------------------------------------------------------------
