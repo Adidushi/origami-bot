@@ -631,3 +631,59 @@ def crease_2(
     arm.rotate_absolute(original_orientation)
 
 
+def move_paper(arm: Arm, x: float, y: float, orientation: float = None) -> None:
+    """Translate the whole sheet to (x, y).
+
+    Works on the assumption that we've already gripped the paper and are holding it in the gripper.  
+
+    Parameters
+    ----------
+    arm : Arm
+        Which arm performs the move.
+    x, y : float
+        Target position in the board plane (metres). Positive x is to the right, positive y is forward.
+    orientation : float
+        Rotation about the board normal (radians).  Positive is counterclockwise
+        when viewed from above.
+    """
+    MOVE_PAPER_CLEARANCE = 0.05
+    arm.move_offset_world(0,0,MOVE_PAPER_CLEARANCE)
+    if orientation is not None:
+        rotate_paper(arm, orientation)
+    arm.move_to_world(x, y, MOVE_PAPER_CLEARANCE)
+    arm.move_offset_world(0,0,-MOVE_PAPER_CLEARANCE)
+
+
+
+def rotate_paper(arm: Arm, orientation: float) -> None:
+    """Rotate the paper via rotating the gripper towards a certain direction (via
+    angle relative to the gripper direction).
+    
+    The paper is assumed to be gripped in the arm's gripper. 
+    
+    Parameters
+    ----------
+    arm : Arm
+        Which arm performs the rotation.
+    orientation : float
+        Rotation about the board normal (radians).  Positive is counterclockwise
+        when viewed from above.
+    """
+    orientational_mapping: dict[float, TooltipDirection] = {
+        0: TooltipDirection.RIGHT,
+        math.pi/2: TooltipDirection.FORWARD,
+        math.pi: TooltipDirection.LEFT,
+        3 * math.pi/2: TooltipDirection.BACKWARD
+    }
+    closest_orientation_key = None
+    for key in orientational_mapping.keys():
+        if math.isclose(orientation, key, abs_tol=math.pi/4):
+            closest_orientation_key = key
+            break
+    snapped_orientation = orientational_mapping[closest_orientation_key]
+    remaining_rotation = orientation - closest_orientation_key
+    remaining_rotation_direction = orientational_mapping[(closest_orientation_key + math.pi/2) % (2*math.pi)]
+    new_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()) \
+        .tooltip_direction(snapped_orientation) \
+        .tilt_tooltip(remaining_rotation_direction, remaining_rotation)
+    arm.rotate_absolute(new_orientation)
