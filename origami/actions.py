@@ -605,36 +605,29 @@ def crease_2(
     # calculate move direction for crease
     position_diff = end_pos[:2] - start_pos[:2]
     move_direction = position_diff / np.linalg.norm(position_diff)
-    crease_rotation = math.atan(move_direction[1]/move_direction[0])
+    crease_rotation = math.atan2(move_direction[1], move_direction[0])
+    print(f"crease orientation: {crease_rotation}")
+    original_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose())
 
     # calculate tooltip direction given this data
     orientation = (ArmOrientation
                    .from_tcp_pose(arm.current_tcp_pose())
                    .tooltip_direction(TooltipDirection.DOWN)
                    .rotate_gripper(crease_rotation)
-                   .tilt_tooltip(TooltipDirection.RIGHT, config.CREASE_TILT))
-
-    # modify start and end position to consider creaser tilt
-    modified_start_pos = [*(start_pos[:2]+move_direction*math.sin(config.CREASE_TILT)).tolist(), config.CREASE_HEIGHT*math.cos(config.CREASE_TILT)]
-    modified_end_pos = [*(end_pos[:2]+move_direction*math.sin(config.CREASE_TILT)).tolist(), config.CREASE_HEIGHT*math.cos(config.CREASE_TILT)]
-
-    # calculate modified clearance position
-    modified_clearance_pos = modified_start_pos
-    modified_clearance_pos[2] += config.CREASE_CLEARANCE
-
-    print(f"Crease from {start_pos} to {end_pos}")
-    input(f"Crease from {modified_start_pos} to {modified_end_pos} with orientation {orientation}. Continue?")
+                   )
 
     # move in stages
     # move to clearance
-    arm.move_to_world(*modified_clearance_pos)
+    arm.move_to_world(*start_pos[:2], config.CREASE_CLEARANCE)
     # tilt to correct orientation
     arm.rotate_absolute(orientation)
     # move down to correct start position
-    arm.move_to_world(*modified_start_pos)
+    arm.move_to_world(*start_pos)
     # slide to end pos
-    arm.move_to_world(*modified_end_pos)
+    arm.move_to_world(*end_pos)
     # move up to clearance
     arm.move_offset_world(0, 0, config.CREASE_CLEARANCE)
+
+    arm.rotate_absolute(original_orientation)
 
 

@@ -227,7 +227,7 @@ class SimulatedArmBackend:
         self.log.append(("move_joint_space", self._pose.copy()))
         return True
 
-    def move_joints(self, angles, speed: float, acceleration: float) -> bool:
+    def move_joints(self, angles, speed: float, acceleration: float, asynchronous: bool = True) -> bool:
         self._joints = [float(a) for a in angles]
         self.log.append(("move_joints", self._joints.copy()))
         return True
@@ -273,7 +273,7 @@ class SimulatedGripperBackend:
     def opening(self) -> int:
         return self._opening
     
-    def goto(self, percentage: float) -> None:
+    def goto(self, percentage: float, blocking: bool = True) -> None:
         """Move the gripper to a given opening percentage (0 = open, 1 = closed)."""
         self._opening = int(percentage * 255)
         self.log.append(f"goto {percentage}")

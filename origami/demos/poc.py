@@ -1,18 +1,8 @@
-"""Replicates the two working functions from mvmt/get.py using the framework.
-
-  demo_main_movement    ↔  main_movement()
-      Move the anchor arm out of the way, then grip the paper edge from outside
-      the board using a horizontal sideways approach (all moveL).
-
-  demo_fold_arc         ↔  estimated_circular_motion()
-      Starting from wherever demo_main_movement left the arm, sweep the gripped
-      edge through an exact circular arc (x changes, y constant, wrist tracks).
-      This is contingent on demo_main_movement having run first.
-
+"""
 Usage
 -----
-    python3 origami/demos/demo_get.py              # simulation
-    python3 origami/demos/demo_get.py --hardware   # real arms
+    python3 origami/demos/poc.py                # real arms
+    python3 origami/demos/poc.py --simulation   # simulation
 """
 from __future__ import annotations
 
@@ -35,11 +25,11 @@ from origami import Paper, Workspace, actions, config
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="demo_get — paper edge grip and fold")
-    parser.add_argument("--hardware", action="store_false",
-                        help="drive real arms (default: hardware)")
+    parser.add_argument("--simulation", action="store_true",
+                        help="run in simulation (default: hardware)")
     args = parser.parse_args()
 
-    mode = "HARDWARE" if args.hardware else "SIMULATION"
+    mode = "SIMULATION" if args.simulation else "HARDWARE"
 
     print("=" * 60)
     print("  demo_get — grip paper edge and fold")
@@ -50,7 +40,7 @@ def main() -> None:
     # Initialization
     # ---------------------------------------------------------------------------
     arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS)]
-    ws = Workspace.hardware(arm_configs=arm_configs, home=True) if args.hardware else Workspace.simulated(arm_configs=arm_configs)
+    ws = Workspace.hardware(arm_configs=arm_configs, home=True) if mode == "HARDWARE" else Workspace.simulated(arm_configs=arm_configs)
 
     ws.left.grip()
     ws.right.grip()
@@ -141,6 +131,22 @@ def main() -> None:
         crease_length=config.PAPER_HEIGHT,
         axis="y"
     )
+
+    # actions.place_magnet(ws.left, lbracket_a, x=config.BOARD_WIDTH/2+3.5/100, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2)
+    # actions.crease_multiple(
+    #     arm=ws.left,
+    #     position_pairs=[
+    #         (
+    #             [lbracket_a.anchor_xy[0], lbracket_a.anchor_xy[1] - config.MAGNET_WIDTH / 2 - 1/100, config.CREASE_HEIGHT],
+    #             [lbracket_a.anchor_xy[0], paper_bottom_edge_y, config.CREASE_HEIGHT]
+    #         ),
+    #         (
+    #             [lbracket_a.anchor_xy[0], lbracket_a.anchor_xy[1] + config.MAGNET_WIDTH / 2 + 1/100, config.CREASE_HEIGHT],
+    #             [lbracket_a.anchor_xy[0], paper_bottom_edge_y + config.PAPER_HEIGHT, config.CREASE_HEIGHT]
+    #         )
+    #     ]
+    # )
+    
 
     # ---------------------------------------------------------------------------
     # Step 6 — remove l-bracket magnet
@@ -441,15 +447,16 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     print("[Step 20] crease paper")
     input("Proceed with step 20? (press Enter to continue)")
-    actions.crease(
+    actions.crease_multiple(
         arm=ws.left,
-        start_x=config.BOARD_WIDTH/2+5/100,  # start just beyond the left edge of the paper
-        start_y=config.BOARD_HEIGHT-20.5/100,
-        crease_length=config.PAPER_HEIGHT,
-        axis="y",
-        crease_under_magnet=False
+        position_pairs=[
+            (
+            [lbracket_a.anchor_xy[0], lbracket_a.anchor_xy[1]+config.MAGNET_WIDTH/2+1/100, config.CREASE_HEIGHT],
+            [lbracket_a.anchor_xy[0], lbracket_a.anchor_xy[1]+config.MAGNET_WIDTH/2+10/100, config.CREASE_HEIGHT]
+            ),  # start just below the bottom edge of the paper
+        ],
     )
-
+    
     # ---------------------------------------------------------------------------
     # Step 21 — move block magnet onto last fold and remove L bracket
     # ---------------------------------------------------------------------------
