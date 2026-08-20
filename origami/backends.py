@@ -18,6 +18,8 @@ from typing import Protocol, Sequence, runtime_checkable
 
 import numpy as np
 
+from . import config
+
 
 @runtime_checkable
 class ArmBackend(Protocol):
@@ -119,19 +121,19 @@ class RTDEArmBackend:
         self.receive = rtde_receive.RTDEReceiveInterface(ip)
 
     def move_linear(self, pose, speed: float, acceleration: float) -> bool:
-        return bool(self.control.moveL(list(pose), speed, acceleration))
+        return bool(self.control.moveL(list(pose), speed * config.SPEED_SCALE, acceleration))
 
     def move_linear_poses(self, poses, speed: float, acceleration: float, blend: float = 0.5/100) -> bool:
         # Path form of moveL requires speed, acceleration and blend embedded per waypoint:
         # each entry is [x, y, z, rx, ry, rz, speed, acceleration, blend].
-        path = [list(pose) + [speed, acceleration, blend] for pose in poses]
+        path = [list(pose) + [speed * config.SPEED_SCALE, acceleration, blend] for pose in poses]
         return bool(self.control.moveL(path))
 
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
-        return bool(self.control.moveJ_IK(list(pose), speed, acceleration))
+        return bool(self.control.moveJ_IK(list(pose), speed * config.SPEED_SCALE, acceleration))
 
     def move_joints(self, angles, speed: float, acceleration: float, asynchronous: bool = False) -> bool:
-        return bool(self.control.moveJ(list(angles), speed, acceleration, asynchronous=asynchronous))
+        return bool(self.control.moveJ(list(angles), speed * config.SPEED_SCALE, acceleration, asynchronous=asynchronous))
 
     def current_tcp_pose(self) -> list[float]:
         return list(self.receive.getActualTCPPose())
@@ -214,22 +216,22 @@ class SimulatedArmBackend:
 
     def move_linear(self, pose, speed: float, acceleration: float) -> bool:
         self._pose = [float(v) for v in pose]
-        self.log.append(("move_linear", self._pose.copy()))
+        self.log.append(("move_linear", self._pose.copy(), speed * config.SPEED_SCALE))
         return True
 
     def move_linear_poses(self, poses, speed: float, acceleration: float, blend: float = 0.5/100) -> bool:
-        self._poses = [[*list(pose), speed, acceleration, blend] for pose in poses]
+        self._poses = [[*list(pose), speed * config.SPEED_SCALE, acceleration, blend] for pose in poses]
         self.log.append(("move_linear poses", self._poses.copy()))
         return True
-    
+
     def move_joint_space(self, pose, speed: float, acceleration: float) -> bool:
         self._pose = [float(v) for v in pose]
-        self.log.append(("move_joint_space", self._pose.copy()))
+        self.log.append(("move_joint_space", self._pose.copy(), speed * config.SPEED_SCALE))
         return True
 
     def move_joints(self, angles, speed: float, acceleration: float, asynchronous: bool = True) -> bool:
         self._joints = [float(a) for a in angles]
-        self.log.append(("move_joints", self._joints.copy()))
+        self.log.append(("move_joints", self._joints.copy(), speed * config.SPEED_SCALE))
         return True
 
     def current_tcp_pose(self) -> list[float]:

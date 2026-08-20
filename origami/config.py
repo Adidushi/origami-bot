@@ -25,6 +25,16 @@ RIGHT_ARM_IP = "192.168.56.101"
 GRIPPER_PORT = 63352
 
 # --------------------------------------------------------------------------- #
+# Global speed control
+# --------------------------------------------------------------------------- #
+#: Multiplier applied to every speed value passed to a backend motion command
+#: (moveL/moveJ/moveJ_IK), regardless of call site. Set this directly (e.g.
+#: from a CLI flag) to slow down or speed up a whole run without threading a
+#: speed override through every action/call. Does not affect acceleration.
+SPEED_SCALE = 1.0
+
+CM = 1/100
+# --------------------------------------------------------------------------- #
 # Board / world geometry (metres)
 # --------------------------------------------------------------------------- #
 #: Board extent along world +x (metres).

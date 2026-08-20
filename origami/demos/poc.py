@@ -27,7 +27,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="demo_get — paper edge grip and fold")
     parser.add_argument("--simulation", action="store_true",
                         help="run in simulation (default: hardware)")
+    parser.add_argument("--speed", type=float, default=1.0,
+                        help="global multiplier applied to every commanded speed (default: 1.0)")
     args = parser.parse_args()
+
+    config.SPEED_SCALE = args.speed
 
     mode = "SIMULATION" if args.simulation else "HARDWARE"
 
@@ -383,7 +387,7 @@ def main() -> None:
                 y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
                 grip_angle=0
             )
-
+    return
     # Move paper to the left side of the board, s.t. paper airplane tip is facing to the left side of the board and 
     # the airplane slightly overhangs on the bottom
     paper_airplane_tip = [-3/100, 8.5/100]
