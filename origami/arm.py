@@ -116,6 +116,14 @@ class Arm:
         self.calibration = calibration
         self.gripper = gripper
         self.config = config or ArmConfig()
+        self._tcp_offset: list[float] | None = None
+
+    @property
+    def tcp_offset(self) -> list[float]:
+        """The real gripper's fixed offset from the flange, as a UR-style pose. Fetched once and cached."""
+        if self._tcp_offset is None:
+            self._tcp_offset = self.backend.get_tcp_offset()
+        return self._tcp_offset
 
     # ------------------------------------------------------------------ #
     # Constructors

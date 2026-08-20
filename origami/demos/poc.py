@@ -423,6 +423,8 @@ def main() -> None:
     # Step 17 - Fold right wing of paper airplane via right hand.
     # Right hand grips paper from bottom edge of board
     # ---------------------------------------------------------------------------
+    print("[Step 17] Fold right wing of paper airplane via right hand. Start with gripping paper.")
+    input("Proceed with step 17? (press Enter to continue)")
     actions.grip_paper(
             arm=ws.right,
             x=paper_bottom_left_corner_x + 1 * CM, 
@@ -431,7 +433,7 @@ def main() -> None:
     )
 
     # 15 CM right from paper airplane tip.
-    end_pos = paper_airplane_tip.copy() + [15/100, 0]
+    end_pos = [paper_airplane_tip[0] + 15 * CM, paper_airplane_tip[1], 0]
     actions.fold_arc(
         arm=ws.right,
         end_pos=end_pos,

@@ -82,6 +82,10 @@ class ArmBackend(Protocol):
         """Return the current operation progress object, which can be queried for async status."""
         ...
 
+    def get_tcp_offset(self) -> list[float]:
+        """Return the real gripper's fixed offset from the flange, as a UR-style pose ``[x, y, z, rx, ry, rz]``."""
+        ...
+
 
 @runtime_checkable
 class GripperBackend(Protocol):
@@ -166,6 +170,9 @@ class RTDEArmBackend:
     
     def get_operation_progress(self):
         return self.control.getAsyncOperationProgressEx()
+
+    def get_tcp_offset(self) -> list[float]:
+        return list(self.control.getTCPOffset())
 
 
 class RobotiqGripperBackend:
@@ -265,6 +272,10 @@ class SimulatedArmBackend:
                                q_near: Sequence[float]) -> list[float] | None:
         # No kinematics model in simulation — return the seed unchanged.
         return list(q_near)
+
+    def get_tcp_offset(self) -> list[float]:
+        # No configured tool in simulation — flange and TCP coincide.
+        return [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
 class SimulatedGripperBackend:
