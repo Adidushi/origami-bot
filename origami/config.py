@@ -38,13 +38,13 @@ CM = 1/100
 # Board / world geometry (metres)
 # --------------------------------------------------------------------------- #
 #: Board extent along world +x (metres).
-BOARD_WIDTH = 0.37
+BOARD_WIDTH = 37 * CM
 #: Board extent along world +y (metres).
-BOARD_HEIGHT = 0.27
+BOARD_HEIGHT = 27 * CM
 #: Default paper width (metres).
-PAPER_WIDTH = 0.21
+PAPER_WIDTH = 21 * CM
 #: Default paper height (metres).
-PAPER_HEIGHT = 0.297
+PAPER_HEIGHT = 29.7 * CM
 
 # --------------------------------------------------------------------------- #
 # Taught calibration (UR TCP poses / world positions), loaded from
@@ -62,9 +62,7 @@ RIGHT_ARM_CORNERS = _calibration["RIGHT_ARM_CORNERS"]
 
 
 
-FLIP_PAPER_CLEARANCE = 0.35
-FLIP_PAPER_OVERROTATION = 0.5
-
+FLIP_PAPER_CLEARANCE = 35 * CM
 
 # --------------------------------------------------------------------------- #
 # Start joint positions (radians), applied at the beginning of every program run.
@@ -92,12 +90,12 @@ MAGNET_PLATFORM_POSITIONS = {
     "bottom_right": left_calibration().arm_to_world_xyz(_calibration["MAGNET_PLATFORM_POSITIONS"]["bottom_right"][:3]),
     "bottom_left": left_calibration().arm_to_world_xyz(_calibration["MAGNET_PLATFORM_POSITIONS"]["bottom_left"][:3])
 }
-
+    
 # width of 2-magnet-wide placeable magnet, used so we dont hit in while creasing
-MAGNET_WIDTH = 7/100
+MAGNET_WIDTH = 7 * CM
 
 CREASER_POS = [MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-14.7/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+16.9/100, MAGNET_PLATFORM_POSITIONS["bottom_right"][2]+4.7/100]
 CREASER_GRIP_OPEN_POS = 0.65
-CREASE_HEIGHT = 5.3/100
+CREASE_HEIGHT = 5.3 * CM
 CREASE_TILT = math.radians(45)
-CREASE_CLEARANCE = 0.103
+CREASE_CLEARANCE = 10.3 * CM

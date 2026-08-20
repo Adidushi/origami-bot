@@ -286,13 +286,13 @@ def grip_paper(x: float, y: float, grip_angle: float,
     
     # based on right hand rule since tooltip (index finger) = forward (-x base dir), gripper (middle finger)=flat (in this case pointing left = +y base dir) then rotation axis/thumb = +z base dir with
     # positive rotation angle being left, so in rotvec case pos degree is to the left so we do the same here.
-    arm.move_to_tcp(arm.world_to_tcp(x_start, y_start, PAPER_GRIP_HEIGHT)) # move to paper grip height at the approach point
+    arm.move_to_world(x_start, y_start, PAPER_GRIP_HEIGHT) # move to paper grip height at the approach point
     grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, rotation=grip_angle)
     arm.rotate_absolute(grip_angle_oriented_orientation)
 
     arm.goto(.5) # open the gripper to prepare to grip the paper
     # Slide horizontally in to the paper edge.
-    arm.move_to_tcp(arm.world_to_tcp(x, y, PAPER_GRIP_HEIGHT))
+    arm.move_to_world(x, y, PAPER_GRIP_HEIGHT)
     arm.grip() # grip paper
 
 def flip_paper(arm: Arm) -> None:
@@ -441,12 +441,12 @@ def grip_crease_tool(arm: Arm, x: float, y: float, z: float, grip_angle: float) 
     arm.rotate_absolute(right_orientation)
 
     # Step 2: reorient to sideways at clearance height.
-    arm.move_to_tcp(arm.world_to_tcp(x_start, y_start, arm.config.clearance_z))
+    arm.move_to_world(x_start, y_start, arm.config.clearance_z)
     # Step 3: descend to grip height.
-    arm.move_to_tcp(arm.world_to_tcp(x_start, y_start, z_start))
+    arm.move_to_world(x_start, y_start, z_start)
     arm.goto(config.CREASER_GRIP_OPEN_POS)
     # Slide horizontally in to grip point.
-    arm.move_to_tcp(arm.world_to_tcp(x, y, z))
+    arm.move_to_world(x, y, z)
     arm.grip()
     arm.move_offset_world(-0.07, 0, 0) # move back a bit to remove the creaser tool from the holder
     arm.move_offset_world(0, 0, 0.05) # move up a bit to lift up the creaser tool from the platform
@@ -483,11 +483,11 @@ def return_creaser_tool(arm: Arm, x: float, y: float, z: float, grip_angle: floa
     arm.rotate_absolute(right_orientation)
 
     # Step 2: reorient to sideways at clearance height.
-    arm.move_to_tcp(arm.world_to_tcp(x_start, y_start, arm.config.clearance_z))
+    arm.move_to_world(x_start, y_start, arm.config.clearance_z)
     # Step 3: descend to grip height.
-    arm.move_to_tcp(arm.world_to_tcp(x_start, y_start, z_start))
+    arm.move_to_world(x_start, y_start, z_start)
     # Slide horizontally in to the paper edge.
-    arm.move_to_tcp(arm.world_to_tcp(x, y, z))
+    arm.move_to_world(x, y, z)
     arm.goto(config.CREASER_GRIP_OPEN_POS, blocking=True)
     arm.move_offset_world(-0.1, 0, 0) # move back a bit to put down the creaser tool properly
     arm.grip()

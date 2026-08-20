@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 from origami.arm import ArmConfig
 from origami.magnets import BlockMagnet, LBracketMagnet
 from origami import Paper, Workspace, actions, config
+from origami.config import CM
 
 
 # ---------------------------------------------------------------------------
@@ -67,22 +68,22 @@ def main() -> None:
     print("[Step 1] Place initial magnets")
     block_a = BlockMagnet(
         identifier="block_a",
-        handle_height=0.015,
-        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.7/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
+        handle_height=1.5 * CM,
+        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.7 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
     block_b = BlockMagnet(
         identifier="block_b",
-        handle_height=0.015,
-        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1/100-5/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.7/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
+        handle_height=1.5 * CM,
+        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-1 * CM-5 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+11.7 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
     lbracket_a = LBracketMagnet(
         identifier="lbracket_a",
-        handle_height=0.3/100,
-        handle_offset=19.7/100, 
+        handle_height=0.3 * CM,
+        handle_offset=19.7 * CM, 
         orientation = 0,
-        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-0.7/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.55/100, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
+        tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-0.7 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.55 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
 
     """
@@ -384,13 +385,13 @@ def main() -> None:
     actions.grip_paper(
                 arm=ws.left,
                 x=config.BOARD_WIDTH/2+(config.BOARD_WIDTH-config.PAPER_WIDTH)/2,  # approach from just beyond the left edge of the paper
-                y=paper_bottom_edge_y + 0.3/100,  # approach from just below the bottom edge of the paper
+                y=paper_bottom_edge_y + 0.3 * CM,  # approach from just below the bottom edge of the paper
                 grip_angle=0
             )
     return
     # Move paper to the left side of the board, s.t. paper airplane tip is facing to the left side of the board and 
     # the airplane slightly overhangs on the bottom
-    paper_airplane_tip = [-3/100, 8.5/100]
+    paper_airplane_tip = [-3 * CM, 8.5 * CM]
     actions.move_paper(
         arm=ws.left,
         x=paper_airplane_tip[0],
@@ -400,7 +401,7 @@ def main() -> None:
 
     # Open the hand, release the paper and go home (post-move)
     ws.left.goto(0.65)
-    ws.left.move_offset_world(-5/100, 0, 0)
+    ws.left.move_offset_world(-5 * CM, 0, 0)
     ws.left.go_home()
     ws.left.grip()
 
@@ -412,8 +413,8 @@ def main() -> None:
     actions.place_magnet(
         ws.left,
         lbracket_a, 
-        x=4/100, 
-        y=config.PAPER_HEIGHT/2+1/100, 
+        x=4 * CM, 
+        y=config.PAPER_HEIGHT/2+1 * CM, 
         orientation=-math.pi/2
     )
     ws.left.go_home()
@@ -424,8 +425,8 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     actions.grip_paper(
             arm=ws.right,
-            x=paper_bottom_left_corner_x + 1/100, 
-            y=paper_bottom_edge_y + 0.3/100,
+            x=paper_bottom_left_corner_x + 1 * CM, 
+            y=paper_bottom_edge_y + 0.3 * CM,
             grip_angle=0
     )
 
@@ -446,14 +447,14 @@ def main() -> None:
     actions.move_magnet(
         ws.left,
         lbracket_a, 
-        x=4/100, 
-        y=config.PAPER_HEIGHT/2-3/100, 
+        x=4 * CM, 
+        y=config.PAPER_HEIGHT/2-3 * CM, 
         orientation=-math.pi/2
     )
 
     # Now that fold is held in place, let go of paper, move back and go home
     ws.right.goto(0.65)
-    ws.right.move_offset_world(0,2/100,0)
+    ws.right.move_offset_world(0,2 * CM,0)
     ws.right.go_home()
 
     # ---------------------------------------------------------------------------
@@ -462,8 +463,8 @@ def main() -> None:
     print("[Step 19] crease folded right wing of paper airplane via left hand.")
     input("Proceed with step 19? (press Enter to continue)")
     folded_wing_bottom_edge = lbracket_a.anchor_xy[1] 
-    folded_wing_bottom_edge[0] += config.MAGNET_WIDTH / 2 + 1/100
-    folded_wing_bottom_edge[1] -= 2/100 
+    folded_wing_bottom_edge[0] += config.MAGNET_WIDTH / 2 + 1 * CM
+    folded_wing_bottom_edge[1] -= 2 * CM
     actions.crease_multiple(
         arm=ws.left,
         position_pairs=[
