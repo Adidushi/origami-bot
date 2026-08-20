@@ -104,3 +104,47 @@ def inverse_kinematics(pose, tcp_offset=None) -> list[list[float]]:
     else:
         solutions = ur5e.inverse_kinematics(eef_pose)
     return [list(solution) for solution in solutions]
+
+
+# --------------------------------------------------------------------------- #
+# Branch filters
+# --------------------------------------------------------------------------- #
+# The UR5e's (up to) 8 analytic IK solutions for a reachable pose are exactly
+# the 8 combinations of 3 independent binary choices ("branches"): shoulder
+# left/right, elbow up/down, and wrist flip/no-flip. Each is readable directly
+# off one joint angle's sign -- no forward kinematics needed to filter by it.
+# Empirically verified (via forward_kinematics, comparing solutions for the
+# same target pose): j1 < 0 always gives the higher elbow position regardless
+# of the shoulder branch, and every pose's 8 solutions realize each of the 8
+# sign(j0), sign(j1), sign(j4) combinations exactly once. "left"/"right" and
+# "flip"/"no-flip" follow this arm's sign convention -- re-check with
+# forward_kinematics if it doesn't match intuition for a different mount.
+
+def shoulder_left(solutions: list[list[float]]) -> list[list[float]]:
+    """Keep only ``solutions`` with the base joint (j0) rotated positive."""
+    return [s for s in solutions if s[0] > 0]
+
+
+def shoulder_right(solutions: list[list[float]]) -> list[list[float]]:
+    """Keep only ``solutions`` with the base joint (j0) rotated negative."""
+    return [s for s in solutions if s[0] < 0]
+
+
+def elbow_up(solutions: list[list[float]]) -> list[list[float]]:
+    """Keep only ``solutions`` with the elbow configured up (shoulder joint j1 negative)."""
+    return [s for s in solutions if s[1] < 0]
+
+
+def elbow_down(solutions: list[list[float]]) -> list[list[float]]:
+    """Keep only ``solutions`` with the elbow configured down (shoulder joint j1 positive)."""
+    return [s for s in solutions if s[1] > 0]
+
+
+def wrist_flip(solutions: list[list[float]]) -> list[list[float]]:
+    """Keep only ``solutions`` with the wrist joint (j4) rotated negative."""
+    return [s for s in solutions if s[4] < 0]
+
+
+def wrist_no_flip(solutions: list[list[float]]) -> list[list[float]]:
+    """Keep only ``solutions`` with the wrist joint (j4) rotated positive."""
+    return [s for s in solutions if s[4] > 0]
