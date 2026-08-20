@@ -19,7 +19,8 @@ State
 Motion — arm (TCP) frame
     move_to_tcp(pose)            move to a raw TCP pose via moveL
     movej_to_tcp(pose)           move to a raw TCP pose via moveJ_IK (joint space)
-    
+    moveL_FK(joint_angles)       move to the TCP pose reached by joint_angles, via moveL (FK for the target, straight-line path)
+
 Motion — world frame
     move_to_world(x,y,z)         move to absolute world position via moveL
     move_offset_world(dx,dy,dz)  move relative to current position in world space via moveL
@@ -197,6 +198,26 @@ class Arm:
         spd = speed or self.config.speed
         acc = acceleration or self.config.acceleration
         return self.backend.move_joint_space(pose, spd, acc)
+
+    def moveL_FK(self, joint_angles: list[float],
+                speed: float | None = None,
+                acceleration: float | None = None) -> bool:
+        """Move linearly (moveL) to the TCP pose reached by ``joint_angles`` (via forward kinematics).
+
+        Unlike `move_to_joints`, the path is a straight Cartesian line rather
+        than a joint-space interpolation; ``joint_angles`` only determines the
+        target pose, not the path taken to reach it.
+
+        Parameters
+        ----------
+        joint_angles : list of float
+            Target joint angles ``[j0..j5]`` (radians) whose TCP pose to move to.
+        speed, acceleration : float or None
+            Override config defaults.
+        """
+        spd = speed or self.config.speed
+        acc = acceleration or self.config.acceleration
+        return self.backend.move_linear_fk(joint_angles, spd, acc)
 
 
     # ------------------------------------------------------------------ #

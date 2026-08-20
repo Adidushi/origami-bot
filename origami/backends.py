@@ -45,6 +45,15 @@ class ArmBackend(Protocol):
         """Move to a set of joint angles [j0..j5] (radians)."""
         ...
 
+    def move_linear_fk(self, joint_angles: Sequence[float], speed: float, acceleration: float) -> bool:
+        """Move the TCP in a straight line to the pose reached by ``joint_angles`` (moveL via FK).
+
+        Unlike `move_joints`, the path is a straight Cartesian line rather than
+        a joint-space interpolation; ``joint_angles`` only determines the
+        target pose (via forward kinematics), not the path taken to reach it.
+        """
+        ...
+
     def current_tcp_pose(self) -> list[float]:
         """Return the current TCP pose ``[x, y, z, rx, ry, rz]`` in the arm base frame."""
         ...
@@ -134,6 +143,9 @@ class RTDEArmBackend:
 
     def move_joints(self, angles, speed: float, acceleration: float, asynchronous: bool = False) -> bool:
         return bool(self.control.moveJ(list(angles), speed * config.SPEED_SCALE, acceleration, asynchronous=asynchronous))
+
+    def move_linear_fk(self, joint_angles, speed: float, acceleration: float) -> bool:
+        return bool(self.control.moveL_FK(list(joint_angles), speed * config.SPEED_SCALE, acceleration))
 
     def current_tcp_pose(self) -> list[float]:
         return list(self.receive.getActualTCPPose())
@@ -233,6 +245,11 @@ class SimulatedArmBackend:
         self._joints = [float(a) for a in angles]
         self.log.append(("move_joints", self._joints.copy(), speed * config.SPEED_SCALE))
         return True
+
+    def move_linear_fk(self, joint_angles, speed: float, acceleration: float) -> bool:
+        pose = self.get_forward_kinematics(joint_angles)
+        self.log.append(("move_linear_fk", list(pose), speed * config.SPEED_SCALE))
+        return self.move_linear(pose, speed, acceleration)
 
     def current_tcp_pose(self) -> list[float]:
         return list(self._pose)
