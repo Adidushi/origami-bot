@@ -86,6 +86,7 @@ class ArmConfig:
     joint_speed: float = 1.0
     joint_acceleration: float = 1.4
     home: list[float] | None = None
+    away: list[float] | None = None
 
 
 class Arm:
@@ -163,11 +164,19 @@ class Arm:
         """
         return self.current_world_pos()
     
-    def go_home(self, asynchronous=False):
+    def go_home(self, asynchronous=False, moveL=False) -> None:
         """Move to the home joint configuration."""
         home_pos = self.config.home
+        if moveL:
+            self.moveL_FK(home_pos)
         self.move_to_joints(home_pos, asynchronous=asynchronous)
 
+    def move_away(self, asynchronous=False, moveL=False) -> None:
+        """Move to a safe position away from the board."""
+        away_pos = self.config.away
+        if moveL:
+            self.moveL_FK(away_pos)
+        self.move_to_joints(away_pos, asynchronous=asynchronous)
 
     def is_async_running(self):
         """Check if an asynchronous operation is currently running."""
