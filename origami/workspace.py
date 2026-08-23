@@ -132,8 +132,10 @@ class Workspace:
             Initial paper; defaults to a sheet at the board's bottom-left corner.
         magnets : origami.magnets.MagnetRegistry or None, optional
             Magnet registry; defaults to empty.
-        arm_config : origami.arm.ArmConfig or None, optional
+        arm_configs : origami.arm.ArmConfig or None, optional
             Shared motion defaults for both arms.
+        home : bool, default True
+            Whether to home on initialization or not.
 
         Returns
         -------

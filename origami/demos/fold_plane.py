@@ -1,8 +1,8 @@
 """
 Usage
 -----
-    python3 origami/demos/poc.py                # real arms
-    python3 origami/demos/poc.py --simulation   # simulation
+    python3 origami/demos/fold_plane.py                # real arms
+    python3 origami/demos/fold_plane.py --simulation   # simulation
 """
 from __future__ import annotations
 
@@ -134,7 +134,7 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     print("[Step 4] place l-bracket magnet to hold the fold")
     safe_input("Proceed with step 4? (press Enter to continue)")
-    # in future need to correct orientation of gripper to always close on bottom and top position of magnet holder, right now its fine based on preset magnet and gripper orientations in the POC
+
     # paper is placed s.t. its top edge is aligned with top of board, but since their sizes differ, to get to middle of paper we need to move down by paper's height from top of board, which is not the same as half of board's height
     actions.place_magnet(ws.left, lbracket_a, x=config.BOARD_WIDTH/2+3.5/100, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2)
     ws.left.go_home()
