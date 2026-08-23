@@ -401,6 +401,47 @@ class FoldLine:
         local[1] = 0.0
         return np.asarray(self.frame * local).reshape(2)
 
+    def segment_intersection(self, start: ArrayLike, end: ArrayLike,
+                             tolerance: float = 1e-9) -> np.ndarray | None:
+        """Point where the segment ``start``--``end`` crosses the line, if any.
+
+        Parameters
+        ----------
+        start, end : array_like, shape (2,)
+            Endpoints of the segment.
+        tolerance : float, optional
+            Half-width of the "on the line" band used to treat an endpoint as
+            lying exactly on the line.  Default ``1e-9``.
+
+        Returns
+        -------
+        numpy.ndarray, shape (2,) or None
+            The crossing point, or ``None`` when the segment lies entirely on
+            one side of the line (no proper crossing).
+
+        Notes
+        -----
+        If an endpoint lies on the line that endpoint is returned.  A segment
+        that lies wholly within the line band is treated as non-crossing
+        (``None``) -- there is no single intersection point.
+        """
+        a = _as_xy(start)
+        b = _as_xy(end)
+        oa = self.signed_offset(a)
+        ob = self.signed_offset(b)
+        a_on = abs(oa) <= tolerance
+        b_on = abs(ob) <= tolerance
+        if a_on and b_on:
+            return None
+        if a_on:
+            return a
+        if b_on:
+            return b
+        if (oa > 0.0) == (ob > 0.0):
+            return None
+        t = oa / (oa - ob)
+        return a + t * (b - a)
+
     def clipped_segment(self, centre: ArrayLike, span: float) -> tuple[np.ndarray, np.ndarray]:
         """A finite segment of the line, centred near ``centre``.
 

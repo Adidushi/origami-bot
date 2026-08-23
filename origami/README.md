@@ -27,6 +27,7 @@ calibration fitting — not hand-rolled.
 | `actions.py` | choreography: `fold_flap_over`, `rotate_sheet`, `place_magnet`, `remove_magnet` |
 | `config.py` | IPs, board size, taught corner poses → calibrations |
 | `demos/dart.py` | end-to-end dart recipe, runnable in simulation |
+| `ui/` | browser-based fold simulator (`python -m origami.ui`) |
 
 ## Environment
 
@@ -48,6 +49,25 @@ pip install -r origami/requirements.txt
 ```bash
 python -m origami.demos.dart         # fold a dart; prints paper + arm logs
 ```
+
+## Interactive UI (browser, simulation)
+
+A small, dependency-free web UI visualises the simulated workspace and lets you
+drive the paper model by hand — start a new sheet, fold by clicking, rotate,
+slide, undo and fold a dart — with no robots involved. It is built on the Python
+standard library (`http.server`), so the core requirements above are all it
+needs.
+
+```bash
+python -m origami.ui                  # then open http://127.0.0.1:8000
+python -m origami.ui --host 0.0.0.0 --port 8080   # bind elsewhere
+```
+
+In the browser, **click two points** on the board to set a fold line, then
+**click the side** you want to fold across the crease. The board, the current
+`Paper` polygon, its creases (valley = blue, mountain = orange) and named
+landmarks are redrawn after every operation; the same analytic `Paper` model
+described below is the single source of truth.
 
 ```python
 from origami import Workspace, FoldLine, actions
