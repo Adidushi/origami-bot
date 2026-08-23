@@ -50,6 +50,7 @@ Convenience moves
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Iterable
 
 from . import backends as backends_mod
@@ -363,6 +364,8 @@ class Arm:
         speed, acceleration : float or None
             Override the config defaults.
         """
+        if self.get_joint_angles()[-1] < math.radians(-270):
+            self.rotate_joint(5, math.radians(360), joint_speed=speed)
         if isinstance(rotation, ArmOrientation):
             return self._rotate_absolute_arm_orientation(rotation, speed, acceleration)
         return self._rotate_absolute_rotvec(*rotation, speed=speed, acceleration=acceleration)

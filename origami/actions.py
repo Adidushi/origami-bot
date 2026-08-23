@@ -124,7 +124,6 @@ def place_magnet(arm: Arm, magnet: Magnet, x: float, y: float,
     # then extract that updated grip point for the release move
     grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
     # now that magnet state is updated we can use that value directly from the magnet.
-    print(f'magnet orientation is: {magnet.orientation}')
     _release_magnet_at(arm, grip_x, grip_y, magnet.grip_height, magnet.orientation)
 
     neutral_grip = ArmOrientation.from_tcp_pose(arm.current_tcp_pose()).gripper_orientation(GripperOrientation.VERTICAL_UP)
@@ -182,7 +181,7 @@ def move_magnet(arm: Arm, magnet: Magnet, x: float, y: float,
     """
     grip = magnet.get_grip_xy()
     
-    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, orientation)
+    _grip_magnet_at(arm, float(grip[0]), float(grip[1]), magnet.grip_height, magnet.orientation)
 
     # update magnet state to where its going to be placed and extract those (this takes orientation into consideration)
     grip_x, grip_y = magnet.place_at(x, y, orientation).get_grip_xy()
@@ -578,7 +577,8 @@ def crease(
 
 def crease_multiple(
         arm: Arm,
-        position_pairs: list[tuple[list[float], list[float]]]
+        position_pairs: list[tuple[list[float], list[float]]],
+        angle: float | None = None
         ):
 
     # initalize and grab tool    
@@ -588,7 +588,10 @@ def crease_multiple(
 
     # crease each movement
     for start, end in position_pairs:
-        crease_2(arm, start, end)
+        current_joints = arm.get_joint_angles()
+        current_joints[5] = 0 # reset wrist so we dont hit limits
+        arm.move_to_joints(current_joints) # reset wrist so we dont hit limits
+        crease_2(arm, start, end, angle)
 
     # go home and return creaser
     arm.rotate_absolute(original_orientation)
@@ -598,14 +601,15 @@ def crease_multiple(
 def crease_2(
     arm: Arm,
     start_pos: list[float],
-    end_pos: list[float]
+    end_pos: list[float],
+    angle: float | None = None,
     ):
     '''
     goes above first point, tilts and angles, then goes to second point.
     '''
 
     # initialize constants
-    tilt_angle = math.radians(30)
+    tilt_angle = angle if angle is not None else config.CREASE_ANGLE
     start_pos = np.array(start_pos)
     end_pos = np.array(end_pos)
     crease_height = config.CREASE_HEIGHT*math.cos(tilt_angle)  # height of the crease point above the board
@@ -624,9 +628,8 @@ def crease_2(
     end_pos[:2] += horizontal_offset
 
 
-    print(f"crease orientation: {crease_rotation}")
-    
     # calculate tooltip direction given this data
+    # ensure tooltip tilt is in the correct direction (perpendicular to crease line) and gripper is rotated to match crease rotation
     orientation = (ArmOrientation
                    .from_directions(tooltip_direction=TooltipDirection.DOWN,
                                      gripper_orientation=GripperOrientation.VERTICAL_DOWN)
@@ -641,10 +644,8 @@ def crease_2(
     arm.rotate_absolute(orientation)
     # move down to correct start position
     arm.move_to_world(*start_pos)
-    input('this is start pos')
     # slide to end pos
     arm.move_to_world(*end_pos)
-    input('this is end pos')
     # move up to clearance
     arm.move_to_world(*end_pos[:2], config.CREASE_CLEARANCE)
 
@@ -663,7 +664,7 @@ def move_paper(arm: Arm, x: float, y: float, orientation: float = None) -> None:
         Rotation about the board normal (radians).  Positive is counterclockwise
         when viewed from above.
     """
-    MOVE_PAPER_CLEARANCE = 15 * CM
+    MOVE_PAPER_CLEARANCE = 10 * CM
     arm.move_offset_world(0, 0, MOVE_PAPER_CLEARANCE)
     if orientation is not None:
         rotate_paper(arm, orientation)
