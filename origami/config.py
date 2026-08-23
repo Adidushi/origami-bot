@@ -69,9 +69,11 @@ FLIP_PAPER_CLEARANCE = 35 * CM
 # --------------------------------------------------------------------------- #
 #: Right arm start position: [0°, -90°, -90°, -90°, 90°, 0°]
 RIGHT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, -90, -90, 90, 0]]
+RIGHT_ARM_AWAY_JOINTS: list[float] = [math.radians(a) for a in [-90, -90, 0, -90, 90, 0]]
 #: Left arm start position:
 #LEFT_ARM_START_JOINTS: list[float] | None = None  # e.g. [math.radians(a) for a in [0, -90, -90, -90, 90, 0]]
 LEFT_ARM_START_JOINTS: list[float] = [math.radians(a) for a in [0, -90, 90, -90, -90, 0]]
+LEFT_ARM_AWAY_JOINTS: list[float] = [math.radians(a) for a in [-90, -90, 0, -90, 90, 0]]
 
 
 def left_calibration() -> ArmCalibration:
