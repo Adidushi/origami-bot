@@ -7,7 +7,7 @@ Additionally, it contains the necessary framework to create new patterns for dif
 
 | Module                | Responsibility                                                                                                          |
 |-----------------------|-------------------------------------------------------------------------------------------------------------------------|
-| `actions.py`          | choreography: `fold_flap_over`, `rotate_sheet`, `place_magnet`, `remove_magnet`, etc.                                   |
+| `actions.py`          | choreography: `grip_paper`, `place_magnet`, `remove_magnet`, etc.                                                       |
 | `arm.py`              | `Arm`: `move_to_world`, `move_to_tcp`, `move_offset_world`, `grip`/`release`                                            |
 | `backends.py`         | `RTDEArmBackend`/`RobotiqGripperBackend`                                                                                |
 | `calibrate.py`        | Runs calibration method to find new board and platform positions                                                        |
