@@ -32,6 +32,7 @@ import math
 
 import numpy as np
 
+from .config import CM
 from . import config
 from .arm import Arm
 from .magnets import Magnet
@@ -50,7 +51,7 @@ PAPER_GRIP_HEIGHT = 0.001
 GRIP_OVERHANG_MIN = 0.005
 
 #: How far outside the grip point the arm starts its horizontal approach (metres).
-PAPER_APPROACH_OFFSET = 2/100
+PAPER_APPROACH_OFFSET = 3 * CM
 CREASER_APPROACH_OFFSET = 5/100
 
 MAGNET_GRIP_OPEN_POS = 0.6
@@ -244,7 +245,7 @@ def release_magnet(arm: Arm, magnet: Magnet, x: float, y: float,
 # ===========================================================================
 
 def grip_paper(x: float, y: float, grip_angle: float,
-               arm: Arm) -> None:
+               arm: Arm, skip_clearance=False) -> None:
     """Grip the paper at an edge or corner by approaching horizontally from outside the board.
 
     The paper is assumed to overhang the board at ``(x, y)``.  The arm transits
@@ -269,16 +270,21 @@ def grip_paper(x: float, y: float, grip_angle: float,
     # grip angle is relative to forward direction, which is relative to y axis,
     # however typically angles are defined relative to x axis so that x stuff is via cos and y stuff is via sin,
     # by taking 90 - angle = pi/2 - angle we get the angle relative to the x axis again.
-    x_start = x + PAPER_APPROACH_OFFSET * math.cos(math.pi/2-grip_angle)
-    y_start = y - PAPER_APPROACH_OFFSET * math.sin(math.pi/2-grip_angle)
+    if not skip_clearance:
+        x_start = x + PAPER_APPROACH_OFFSET * math.cos(math.pi/2-grip_angle)
+        y_start = y - PAPER_APPROACH_OFFSET * math.sin(math.pi/2-grip_angle)
 
     # Step 1: transit to approach start, preserving current orientation.
-    arm.move_to_clearance(x_start, y_start)
+        arm.move_to_clearance(x_start, y_start)
+    else:
+        x_start = x
+        y_start = y
 
     # rotate the gripper to point forward and flat (so it can grip the paper) so that it is facing the wall in an easy to start orientation
     # forward_rotvec = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT).to_rotvec()
     forward_orientation = ArmOrientation.from_directions(tooltip_direction=TooltipDirection.FORWARD, gripper_orientation=GripperOrientation.FLAT)
-
+    grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, rotation=grip_angle)
+    arm.rotate_absolute(grip_angle_oriented_orientation)
 
     # rotate the gripper to point in the direction of the grip angle so that it can approach the paper edge at the correct angle
     # grip_angle_oriented_rotvec = compose_rotation_vectors(forward_rotvec, [0, 0, grip_angle])
@@ -287,8 +293,6 @@ def grip_paper(x: float, y: float, grip_angle: float,
     # based on right hand rule since tooltip (index finger) = forward (-x base dir), gripper (middle finger)=flat (in this case pointing left = +y base dir) then rotation axis/thumb = +z base dir with
     # positive rotation angle being left, so in rotvec case pos degree is to the left so we do the same here.
     arm.move_to_world(x_start, y_start, PAPER_GRIP_HEIGHT) # move to paper grip height at the approach point
-    grip_angle_oriented_orientation = forward_orientation.tilt_tooltip(direction=TooltipDirection.LEFT, rotation=grip_angle)
-    arm.rotate_absolute(grip_angle_oriented_orientation)
 
     arm.goto(.5) # open the gripper to prepare to grip the paper
     # Slide horizontally in to the paper edge.
@@ -489,7 +493,7 @@ def return_creaser_tool(arm: Arm, x: float, y: float, z: float, grip_angle: floa
     # Slide horizontally in to the paper edge.
     arm.move_to_world(x, y, z)
     arm.goto(config.CREASER_GRIP_OPEN_POS, blocking=True)
-    arm.move_offset_world(-0.1, 0, 0) # move back a bit to put down the creaser tool properly
+    arm.move_offset_world(-CREASER_APPROACH_OFFSET, 0, 0) # move back a bit to put down the creaser tool properly
     arm.grip()
     arm.go_home()
 
@@ -580,12 +584,14 @@ def crease_multiple(
     # initalize and grab tool    
     crease_x, crease_y, crease_z = config.CREASER_POS
     grip_crease_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
+    original_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose())
 
     # crease each movement
     for start, end in position_pairs:
         crease_2(arm, start, end)
 
     # go home and return creaser
+    arm.rotate_absolute(original_orientation)
     arm.go_home()
     return_creaser_tool(arm, crease_x, crease_y, crease_z, grip_angle=0)
 
@@ -599,21 +605,33 @@ def crease_2(
     '''
 
     # initialize constants
+    tilt_angle = math.radians(30)
     start_pos = np.array(start_pos)
     end_pos = np.array(end_pos)
+    crease_height = config.CREASE_HEIGHT*math.cos(tilt_angle)  # height of the crease point above the board
+    # offset the start and end positions to account for the tilt of the creaser tool
+    start_pos[2] = crease_height
+    end_pos[2] = crease_height
+
 
     # calculate move direction for crease
     position_diff = end_pos[:2] - start_pos[:2]
     move_direction = position_diff / np.linalg.norm(position_diff)
     crease_rotation = math.atan2(move_direction[1], move_direction[0])
-    print(f"crease orientation: {crease_rotation}")
-    original_orientation = ArmOrientation.from_tcp_pose(arm.current_tcp_pose())
 
+    horizontal_offset = move_direction * math.sin(tilt_angle) * config.CREASE_HEIGHT
+    start_pos[:2] += horizontal_offset
+    end_pos[:2] += horizontal_offset
+
+
+    print(f"crease orientation: {crease_rotation}")
+    
     # calculate tooltip direction given this data
     orientation = (ArmOrientation
-                   .from_tcp_pose(arm.current_tcp_pose())
-                   .tooltip_direction(TooltipDirection.DOWN)
-                   .rotate_gripper(crease_rotation)
+                   .from_directions(tooltip_direction=TooltipDirection.DOWN,
+                                     gripper_orientation=GripperOrientation.VERTICAL_DOWN)
+                   .rotate_gripper(-(crease_rotation+math.pi)%(2*math.pi))
+                   .tilt_tooltip(direction=TooltipDirection.LEFT, rotation=tilt_angle)
                    )
 
     # move in stages
@@ -623,13 +641,12 @@ def crease_2(
     arm.rotate_absolute(orientation)
     # move down to correct start position
     arm.move_to_world(*start_pos)
+    input('this is start pos')
     # slide to end pos
     arm.move_to_world(*end_pos)
+    input('this is end pos')
     # move up to clearance
-    arm.move_offset_world(0, 0, config.CREASE_CLEARANCE)
-
-    arm.rotate_absolute(original_orientation)
-
+    arm.move_to_world(*end_pos[:2], config.CREASE_CLEARANCE)
 
 def move_paper(arm: Arm, x: float, y: float, orientation: float = None) -> None:
     """Translate the whole sheet to (x, y).
@@ -646,12 +663,12 @@ def move_paper(arm: Arm, x: float, y: float, orientation: float = None) -> None:
         Rotation about the board normal (radians).  Positive is counterclockwise
         when viewed from above.
     """
-    MOVE_PAPER_CLEARANCE = 0.05
-    arm.move_offset_world(0,0,MOVE_PAPER_CLEARANCE)
+    MOVE_PAPER_CLEARANCE = 15 * CM
+    arm.move_offset_world(0, 0, MOVE_PAPER_CLEARANCE)
     if orientation is not None:
         rotate_paper(arm, orientation)
     arm.move_to_world(x, y, MOVE_PAPER_CLEARANCE)
-    arm.move_offset_world(0,0,-MOVE_PAPER_CLEARANCE)
+    arm.move_offset_world(0, 0, -MOVE_PAPER_CLEARANCE)
 
 
 
