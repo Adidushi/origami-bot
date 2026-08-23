@@ -23,6 +23,7 @@ Additionally, it contains the necessary framework to create new patterns for dif
 
 
 Additional components include `mvmt/robotq_gripper.py` which is a thin wrapper for the actual gripper tools.
+Partially inspired by [TAU-CGL's similar module](https://github.com/TAU-CGL/dual_arm_calibration/blob/main/uri_if/robotiq_gripper.py) using Claude.
 
 ## Environment
 
