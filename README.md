@@ -8,8 +8,8 @@ Additionally, it contains the necessary framework to create new patterns for dif
 | Module                | Responsibility                                                                                                          |
 |-----------------------|-------------------------------------------------------------------------------------------------------------------------|
 | `actions.py`          | choreography: `fold_flap_over`, `rotate_sheet`, `place_magnet`, `remove_magnet`, etc.                                   |
-| `arm.py`              | `Arm`: `move_to_board_point`, `hover_above`, `press_onto_board`, `grip`/`release` — heights always explicit             |
-| `backends.py`         | `RTDEArmBackend`/`RobotiqGripperBackend` (real) and `Simulated*` (in-memory) backends                                   |
+| `arm.py`              | `Arm`: `move_to_world`, `move_to_tcp`, `move_offset_world`, `grip`/`release`                                            |
+| `backends.py`         | `RTDEArmBackend`/`RobotiqGripperBackend`                                                                                |
 | `calibrate.py`        | Runs calibration method to find new board and platform positions                                                        |
 | `calibration.json`    | Taught board positions created by `calibrate.py`                                                                        |
 | `config.py`           | IPs, board size, taught corner poses → calibrations                                                                     |
@@ -29,9 +29,8 @@ Additional components include `mvmt/robotq_gripper.py` which is a thin wrapper f
 We recommend using a virtual environment to prevent conflicts.
 
 ```bash
-python3 -m virtualenv .venv          # (or: python3 -m venv .venv)
+python3 -m virtualenv .venv
 . .venv/bin/activate
-pip install -r origami/requirements.txt
 ```
 Everything below assumes that venv is active.
 
@@ -45,7 +44,13 @@ After calibration, the updated positions will be saved to the calibration file.
 The physical environment is defined by a "world space", using positive X as the horizontal board direction,
 and positive Y as the vertical board direction, where 0,0 is the bottom-left corner of the board.
 The Z axis remains the vertical axis.  
-This unifies both arms into one comfortable coordinate system, allowing for cross-hand coordination.
+This unifies both arms into one comfortable coordinate system, allowing for cross-hand coordination.  
+The general workflow is:
+- Place paper in comfortable position
+- Place magnets to support fold
+- Fold
+- Crease the fold  
+Of course, there are many instances where these guidelines do not apply (for instance, folding in half and re-opening!)
 
 ## Requirements
 Physical implements required for the system are:
@@ -56,9 +61,19 @@ Physical implements required for the system are:
   - 1 Creaser card
 3d models for all printable objects are included in the project under `models/`
 
+Software requirements are under `origami/requirements.txt` and can be installed as so:
+```bash
+pip install -r origami/requirements.txt
+```
+
 ## Quick start
 After calibration, place a piece of paper centered on the board, flush to the top (overhanging on the bottom) and run
 the demo:
 ```bash
-python -m origami.demos.fold_plane         # fold a dart; prints paper + arm logs
+python -m origami.demos.fold_plane
+```
+The file can be run with several parameters:
+```bash
+--speed=1 (any value in (0,1], global speed multiplier)
+--go (disables action confirmation, without this flag each step requires manual input)
 ```

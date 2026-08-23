@@ -34,30 +34,21 @@ def safe_input(prompt: str) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="demo_get — paper edge grip and fold")
-    parser.add_argument("--simulation", action="store_true",
-                        help="run in simulation (default: hardware)")
     parser.add_argument("--speed", type=float, default=1.0,
                         help="global multiplier applied to every commanded speed (default: 1.0)")
     parser.add_argument("--go", action="store_true",
                         help="skip all input prompts (GO_MODE)") 
     args = parser.parse_args()
 
-    config.SPEED_SCALE = args.speed
     global GO_MODE
     GO_MODE = args.go
-
-    mode = "SIMULATION" if args.simulation else "HARDWARE"
-
-    print("=" * 60)
-    print("  demo_get — grip paper edge and fold")
-    print(f"  mode: {mode}")
-    print("=" * 60)
+    config.SPEED_SCALE = args.speed
 
     # ---------------------------------------------------------------------------
     # Initialization
     # ---------------------------------------------------------------------------
     arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS, away=config.LEFT_ARM_AWAY_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS, away=config.RIGHT_ARM_AWAY_JOINTS)]
-    ws = Workspace.hardware(arm_configs=arm_configs, home=True) if mode == "HARDWARE" else Workspace.simulated(arm_configs=arm_configs)
+    ws = Workspace.hardware(arm_configs=arm_configs, home=True)
 
     ws.left.grip()
     ws.right.grip()
