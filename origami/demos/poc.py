@@ -44,7 +44,7 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     # Initialization
     # ---------------------------------------------------------------------------
-    arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS)]
+    arm_configs = [ArmConfig(home=config.LEFT_ARM_START_JOINTS, away=config.LEFT_ARM_AWAY_JOINTS), ArmConfig(home=config.RIGHT_ARM_START_JOINTS, away=config.RIGHT_ARM_AWAY_JOINTS)]
     ws = Workspace.hardware(arm_configs=arm_configs, home=True) if mode == "HARDWARE" else Workspace.simulated(arm_configs=arm_configs)
 
     ws.left.grip()
@@ -85,8 +85,6 @@ def main() -> None:
         orientation = 0,
         tray_position=(config.MAGNET_PLATFORM_POSITIONS["bottom_right"][0]-0.7 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][1]+3.55 * CM, config.MAGNET_PLATFORM_POSITIONS["bottom_right"][2]),
     )
-
-    """
 
     actions.place_magnet(ws.left, block_a, x=0.275, y=0.10)
     actions.place_magnet(ws.left, block_b, x=0.265, y=0.225)
@@ -139,6 +137,7 @@ def main() -> None:
     )
 
     # actions.place_magnet(ws.left, lbracket_a, x=config.BOARD_WIDTH/2+3.5/100, y=config.BOARD_HEIGHT-config.PAPER_HEIGHT/2)
+    # ws.right.move_away()
     # actions.crease_multiple(
     #     arm=ws.left,
     #     position_pairs=[
@@ -255,7 +254,7 @@ def main() -> None:
     ws.left.go_home()
 
     # Open the hand, release the paper and go home (post-fold)
-    ws.right.goto(0.65)
+    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
     ws.right.move_offset_world(0, 0, 5/100)
 
     ws.right.go_home()
@@ -366,7 +365,7 @@ def main() -> None:
 
     # Open the hand, release the paper and go home (post-fold)
     # TODO: Maybe if we have time - add crease
-    ws.right.goto(0.65)
+    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
     ws.right.move_offset_world(0, 0, 5/100)
     ws.right.go_home()
     ws.right.grip()
@@ -374,7 +373,7 @@ def main() -> None:
     actions.remove_magnet(ws.left, block_a)
     actions.remove_magnet(ws.left, block_b)
     ws.left.go_home()
-    """
+    
     # -------------------------------------------------------------------------------
     # Step 15 - move paper to the left side of the board, rotated s.t. airplane tip 
     # is facing to the left side of the board and the airplane slightly overhangs on the bottom
@@ -382,13 +381,17 @@ def main() -> None:
     # -------------------------------------------------------------------------------
     print("[Step 15] move paper to the left side of the board, rotated s.t. airplane tip is facing to the left side of the board and the airplane slightly overhangs on the bottom")
     input("Proceed with step 15? (press Enter to continue)")
+
+    # move to a known good position to seed a good movement onwards
+    ws.left.move_to_joints([-1.4161742369281214, -0.5880364340594788, 1.8365309874164026, -1.2560871702483674, 0.16226720809936523-2*math.pi, 1.5788087844848633])
+
     actions.grip_paper(
                 arm=ws.left,
-                x=config.BOARD_WIDTH/2+(config.BOARD_WIDTH-config.PAPER_WIDTH)/2,  # approach from just beyond the left edge of the paper
-                y=paper_bottom_edge_y + 0.3 * CM,  # approach from just below the bottom edge of the paper
+                x=config.BOARD_WIDTH-config.PAPER_WIDTH/2,  # approach from just beyond the left edge of the paper
+                y=paper_bottom_edge_y,  # approach from just below the bottom edge of the paper
                 grip_angle=0
             )
-    return
+    
     # Move paper to the left side of the board, s.t. paper airplane tip is facing to the left side of the board and 
     # the airplane slightly overhangs on the bottom
     paper_airplane_tip = [-3 * CM, 8.5 * CM]
@@ -399,26 +402,39 @@ def main() -> None:
         orientation=math.radians(0)
     )
 
+
     # Open the hand, release the paper and go home (post-move)
-    ws.left.goto(0.65)
-    ws.left.move_offset_world(-5 * CM, 0, 0)
+    ws.left.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.left.move_offset_world(0, 7 * CM, 0)
+    # input(f'known good joints: {ws.left.get_joint_angles()}')
+    ws.left.move_offset_world(0, 0, 20 * CM)
     ws.left.go_home()
     ws.left.grip()
-
+    
+    
     # --------------------------------------------------------------------------------
-    # Step 16 - Place LBracket magnet to hold the paper airplane in place for the next fold
+    # Step 16 - Place Block A magnet to hold the paper airplane in place for the next fold
     # --------------------------------------------------------------------------------
-    print("[Step 16] Place LBracket magnet to hold the paper airplane in place for the next fold")
+    print("[Step 16] Place Block A magnet to hold the paper airplane in place for the next fold")
     input("Proceed with step 16? (press Enter to continue)")
     actions.place_magnet(
         ws.left,
-        lbracket_a, 
-        x=4 * CM, 
-        y=config.PAPER_HEIGHT/2+1 * CM, 
-        orientation=-math.pi/2
+        block_a, 
+        x=config.BOARD_WIDTH/2-8 * CM, 
+        y=config.PAPER_WIDTH/2+3 * CM, 
+        orientation=0
     )
-    ws.left.go_home()
 
+    actions.place_magnet(
+        ws.left,
+        block_b, 
+        x=config.BOARD_WIDTH/2+3 * CM, 
+        y=config.PAPER_WIDTH/2+3 * CM, 
+        orientation=0
+    )
+
+    ws.left.go_home()
+    
     # ---------------------------------------------------------------------------
     # Step 17 - Fold right wing of paper airplane via right hand.
     # Right hand grips paper from bottom edge of board
@@ -427,13 +443,16 @@ def main() -> None:
     input("Proceed with step 17? (press Enter to continue)")
     actions.grip_paper(
             arm=ws.right,
-            x=paper_bottom_left_corner_x + 1 * CM, 
+            x=config.BOARD_WIDTH/2, 
             y=paper_bottom_edge_y + 0.3 * CM,
             grip_angle=0
     )
 
+    print("[Step 17.5] Fold right wing of paper airplane via right hand. Start with gripping paper.")
+    input("Proceed with step 17.5? (press Enter to continue)")
     # 15 CM right from paper airplane tip.
-    end_pos = [paper_airplane_tip[0] + 15 * CM, paper_airplane_tip[1], 0]
+    paper_airplane_tip = [-3 * CM, 8.5 * CM]
+    end_pos = [config.BOARD_WIDTH/2, paper_airplane_tip[1], 0]
     actions.fold_arc(
         arm=ws.right,
         end_pos=end_pos,
@@ -446,39 +465,206 @@ def main() -> None:
     # ---------------------------------------------------------------------------
     print("[Step 18] Transition LBracket magnet to hold previous fold in place")
     input("Proceed with step 18? (press Enter to continue)")
-    actions.move_magnet(
+    actions.place_magnet(
         ws.left,
         lbracket_a, 
-        x=4 * CM, 
-        y=config.PAPER_HEIGHT/2-3 * CM, 
-        orientation=-math.pi/2
+        x=config.BOARD_WIDTH/2-8 * CM, 
+        y=config.PAPER_WIDTH/2-5 * CM, 
+        orientation=0
     )
 
     # Now that fold is held in place, let go of paper, move back and go home
-    ws.right.goto(0.65)
-    ws.right.move_offset_world(0,2 * CM,0)
+    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.right.move_offset_world(0, 0, 5 * CM)
     ws.right.go_home()
-
+    
     # ---------------------------------------------------------------------------
     # Step 19 - crease folded right wing of paper airplane via left hand.
     # ---------------------------------------------------------------------------
     print("[Step 19] crease folded right wing of paper airplane via left hand.")
     input("Proceed with step 19? (press Enter to continue)")
-    folded_wing_bottom_edge = lbracket_a.anchor_xy[1] 
-    folded_wing_bottom_edge[0] += config.MAGNET_WIDTH / 2 + 1 * CM
-    folded_wing_bottom_edge[1] -= 2 * CM
+    start_pos = [config.BOARD_WIDTH/2 - 5*CM, paper_bottom_edge_y + config.PAPER_WIDTH/4, config.CREASE_HEIGHT]
+    end_pos = start_pos.copy()
+    end_pos[0] += 13 * CM
+    ws.right.move_away()
     actions.crease_multiple(
         arm=ws.left,
         position_pairs=[
-            (
-                [folded_wing_bottom_edge[0], folded_wing_bottom_edge[1], config.CREASE_HEIGHT],
-                [config.BOARD_WIDTH/2, 0, config.CREASE_HEIGHT]
-            )
+            (start_pos, end_pos)
         ]
     )
+
+    # ---------------------------------------------------------------------------
+    # Step 20 - remove magnets and go home.
+    # ---------------------------------------------------------------------------
+    print("[Step 20] remove magnets and go home.")
+    input("Proceed with step 20? (press Enter to continue)")
+    actions.remove_magnet(ws.left, block_a)
+    actions.remove_magnet(ws.left, block_b)
     actions.remove_magnet(ws.left, lbracket_a)
     ws.left.go_home()
 
+    
+
+    # ---------------------------------------------------------------------------
+    # Step 21 - turn plane 90 degrees.
+    # ---------------------------------------------------------------------------
+    print("[Step 21] turn plane 90 degrees.")
+    input("Proceed with step 21? (press Enter to continue)")
+
+    ws.left.move_to_joints([-0.028294865285054982, -0.1579865974238892, 1.0424016157733362, -0.7840147775462647, -3.1639869848834437, 1.6709191799163818])
+    ws.left.goto(.5)
+    ws.left.move_offset_world(0, -7 * CM, 0)
+    paper_airplane_tip = [-3 * CM, 8.5 * CM]
+    actions.grip_paper(
+        arm=ws.left,
+        x=paper_airplane_tip[0], #config.BOARD_WIDTH-config.PAPER_WIDTH/2,  # approach from just beyond the left edge of the paper
+        y=paper_airplane_tip[1], #paper_bottom_edge_y,  # approach from just below the bottom edge of the paper
+        grip_angle=-math.pi/2,
+        skip_clearance=True
+    )
+    
+    # Move paper to the left side of the board, s.t. paper airplane tip is facing to the left side of the board and 
+    # the airplane slightly overhangs on the bottom
+    actions.move_paper(
+        arm=ws.left,
+        x=config.PAPER_WIDTH/2-3*CM,
+        y=paper_bottom_edge_y,
+        orientation=math.pi/2
+    )
+
+    ws.left.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.left.move_offset_world(0, -3 * CM, 0)
+    ws.left.go_home()
+    ws.left.grip()
+    # ---------------------------------------------------------------------------
+    # Step 22 - move plane to right side for second wing fold
+    # ---------------------------------------------------------------------------
+    print("[Step 22] move plane to right side for second wing fold.")
+    input("Proceed with step 22? (press Enter to continue)")
+    paper_airplane_tip = [config.BOARD_WIDTH-5 * CM, 8.5 * CM]
+    ws.left.move_to_joints([-0.028294865285054982, -0.1579865974238892, 1.0424016157733362, -0.7840147775462647, -3.1639869848834437, 1.6709191799163818])
+    ws.left.goto(.5)
+    ws.left.move_offset_world(0, -7 * CM, 0)
+    ws.left.move_offset_world(1 * CM, 0, 0)
+    actions.grip_paper(
+        arm=ws.left,
+        x=-2 * CM,
+        y=8.5 * CM,
+        grip_angle=-math.pi/2,
+        skip_clearance=True
+    )
+
+    # Move paper to the left side of the board, s.t. paper airplane tip is facing to the left side of the board and 
+    # the airplane slightly overhangs on the bottom
+    actions.move_paper(
+        arm=ws.left,
+        x=config.BOARD_WIDTH - 9*CM,
+        y=paper_bottom_edge_y,
+        orientation=math.pi/2
+    )
+
+    ws.left.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.left.move_offset_world(0, -5 * CM, 0)
+    ws.left.move_offset_world(0, 0, 20 * CM)
+    ws.left.go_home()
+    ws.left.grip()
+
+
+
+    # --------------------------------------------------------------------------------
+    # Step 23 - Place Block A magnet to hold the paper airplane in place for the next fold
+    # --------------------------------------------------------------------------------
+    print("[Step 23] Place Block A magnet to hold the paper airplane in place for the next fold")
+    input("Proceed with step 23? (press Enter to continue)")
+    actions.place_magnet(
+        ws.left,
+        block_a, 
+        x=config.BOARD_WIDTH/2+8 * CM, 
+        y=config.PAPER_WIDTH/2+3 * CM, 
+        orientation=0
+    )
+
+    actions.place_magnet(
+        ws.left,
+        block_b, 
+        x=config.BOARD_WIDTH/2-3 * CM, 
+        y=config.PAPER_WIDTH/2+3 * CM, 
+        orientation=0
+    )
+
+    ws.left.go_home()
+    
+    # ---------------------------------------------------------------------------
+    # Step 24 - Fold right wing of paper airplane via right hand.
+    # Right hand grips paper from bottom edge of board
+    # ---------------------------------------------------------------------------
+    print("[Step 24] Fold right wing of paper airplane via right hand. Start with gripping paper.")
+    input("Proceed with step 24? (press Enter to continue)")
+    actions.grip_paper(
+            arm=ws.right,
+            x=config.BOARD_WIDTH/2, 
+            y=paper_bottom_edge_y + 0.3 * CM,
+            grip_angle=0
+    )
+
+    print("[Step 24.5] Fold right wing of paper airplane via right hand. Start with gripping paper.")
+    input("Proceed with step 24.5? (press Enter to continue)")
+    # 15 CM right from paper airplane tip.
+    paper_airplane_tip = [3 * CM, 8.5 * CM]
+    end_pos = [config.BOARD_WIDTH/2, paper_airplane_tip[1], 0]
+    actions.fold_arc(
+        arm=ws.right,
+        end_pos=end_pos,
+        n_steps=8,
+        fold_percent=5/8
+    )
+
+    # ---------------------------------------------------------------------------
+    # Step 25 - Transition LBracket magnet to hold previous fold in place 
+    # ---------------------------------------------------------------------------
+    print("[Step 25] Transition LBracket magnet to hold previous fold in place")
+    input("Proceed with step 25? (press Enter to continue)")
+    actions.place_magnet(
+        ws.left,
+        lbracket_a, 
+        x=config.BOARD_WIDTH/2, 
+        y=config.PAPER_WIDTH/2-7 * CM, 
+        orientation=0
+    )
+    ws.left.go_home()
+
+    # Now that fold is held in place, let go of paper, move back and go home
+    ws.right.goto(config.CREASER_GRIP_OPEN_POS)
+    ws.right.move_offset_world(0, 0, 5 * CM)
+    ws.right.go_home()
+    
+    # ---------------------------------------------------------------------------
+    # Step 26 - crease folded right wing of paper airplane via left hand.
+    # ---------------------------------------------------------------------------
+    print("[Step 26] crease folded right wing of paper airplane via left hand.")
+    input("Proceed with step 26? (press Enter to continue)")
+    start_pos = [config.BOARD_WIDTH/2+3*CM, paper_bottom_edge_y + config.PAPER_WIDTH/4, config.CREASE_HEIGHT]
+    end_pos = start_pos.copy()
+    end_pos[0] += 13 * CM
+    ws.right.move_away()
+
+    actions.crease_multiple(
+        arm=ws.left,
+        position_pairs=[
+            (start_pos, end_pos)
+        ]
+    )
+
+    # ---------------------------------------------------------------------------
+    # Step 27 - remove magnets and go home.
+    # ---------------------------------------------------------------------------
+    print("[Step 27] remove magnets and go home.")
+    input("Proceed with step 27? (press Enter to continue)")
+    actions.remove_magnet(ws.left, block_a)
+    actions.remove_magnet(ws.left, block_b)
+    actions.remove_magnet(ws.left, lbracket_a)
+    ws.left.go_home()
     
     print(f"\n{'=' * 60}")
     print("  Demo complete.")
